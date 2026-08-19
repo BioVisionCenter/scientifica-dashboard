@@ -90,6 +90,23 @@ export default function Explore() {
     }, 120)
   }, [sendToTv, imageId, step, overlay, compare])
 
+  // the toggle owns the TV scene: on -> explore mirror, off -> back to idle
+  const toggleSendToTv = () => {
+    const next = !sendToTv
+    setSendToTv(next)
+    void api.setScene(next ? 'explore' : 'idle')
+  }
+
+  // never leave the TV stuck on a dead mirror when the operator navigates away
+  const sendToTvRef = useRef(false)
+  sendToTvRef.current = sendToTv
+  useEffect(
+    () => () => {
+      if (sendToTvRef.current) void api.setScene('idle')
+    },
+    [],
+  )
+
   const cells: Cell[] = features?.cells ?? []
 
   // live results are region-relative: offset into image coordinates
@@ -352,8 +369,8 @@ export default function Explore() {
             </button>
           ))}
         </div>
-        <button className={`btn ml-3 shrink-0 ${sendToTv ? 'btn-active' : ''}`} onClick={() => setSendToTv(!sendToTv)}>
-          {sendToTv ? 'Mirroring to TV' : 'Send to TV'}
+        <button className={`btn ml-3 shrink-0 ${sendToTv ? 'btn-active' : ''}`} onClick={toggleSendToTv}>
+          {sendToTv ? '● Broadcasting to TV — click to stop' : 'Broadcast to TV'}
         </button>
       </div>
 
