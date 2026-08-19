@@ -53,9 +53,10 @@ export function ImageStage(props: Props) {
         <TransformWrapper
           key={`${props.image.id}-${fitScale.toFixed(4)}`}
           initialScale={fitScale}
+          initialPositionX={(containerRef.current!.clientWidth - props.image.width * fitScale) / 2}
+          initialPositionY={(containerRef.current!.clientHeight - props.image.height * fitScale) / 2}
           minScale={fitScale * 0.8}
           maxScale={8}
-          centerOnInit
           disabled={!props.interactive}
           doubleClick={{ disabled: true }}
           onTransform={(ref) => reportViewport(ref, props, containerRef.current)}
@@ -85,6 +86,7 @@ function StageContent(props: Props) {
   const { image, step, overlay, compare, cells } = props
   const lookup = useLabelLookup(step === 'segmented' || step === 'measured' ? image.assets.labels : null)
   const { zoomIn, zoomOut, resetTransform } = useControls()
+
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {

@@ -18,14 +18,25 @@ class LoadedImage:
     raw_size: tuple[int, int]  # (width, height) before crop
 
 
+def _largest_run(condition: np.ndarray, max_gap: int = 32) -> np.ndarray:
+    """Indices of the largest contiguous True run (gaps <= max_gap bridged)."""
+    idx = np.flatnonzero(condition)
+    if len(idx) == 0:
+        return idx
+    breaks = np.flatnonzero(np.diff(idx) > max_gap)
+    starts = np.concatenate(([0], breaks + 1))
+    ends = np.concatenate((breaks, [len(idx) - 1]))
+    best = np.argmax(idx[ends] - idx[starts])
+    return idx[starts[best] : ends[best] + 1]
+
+
 def autocrop_bbox(rgb: np.ndarray) -> tuple[int, int, int, int]:
     """Bounding box (x0, y0, x1, y1) of non-black content, with margin."""
     mask = rgb.sum(axis=2) > config.CROP_THRESHOLD
-    # require a minimum fraction of content per row/col so thin artifacts
-    # (scale bars) outside the field don't extend the bbox
-    min_frac = 0.002
-    rows = np.flatnonzero(mask.mean(axis=1) > min_frac)
-    cols = np.flatnonzero(mask.mean(axis=0) > min_frac)
+    # Keep the largest contiguous run of content rows/cols: detached artifacts
+    # (scale bars) outside the field then can't extend the bbox.
+    rows = _largest_run(mask.mean(axis=1) > 0.002)
+    cols = _largest_run(mask.mean(axis=0) > 0.002)
     if len(rows) == 0:
         return 0, 0, rgb.shape[1], rgb.shape[0]
     m = config.CROP_MARGIN

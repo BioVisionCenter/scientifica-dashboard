@@ -101,32 +101,44 @@ export default function Admin() {
               onChange={(e) => setName(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-4">
-            <div
-              className="card flex-1 px-5 py-3 text-center font-mono font-medium"
-              style={{ fontSize: 40, color: running ? 'var(--ngio-accent)' : 'var(--ngio-ink)' }}
-            >
-              {seconds.toFixed(1)}s
-            </div>
+          <div className="flex items-center gap-3">
+            <label className="flex flex-1 flex-col gap-1">
+              <span className="eyebrow">time (seconds)</span>
+              <input
+                className="input font-mono"
+                style={{ fontSize: 22, color: running ? 'var(--ngio-accent)' : undefined }}
+                type="number"
+                min={0}
+                step={0.1}
+                value={seconds ? seconds.toFixed(1) : ''}
+                placeholder="type or use stopwatch"
+                onChange={(e) => setSeconds(parseFloat(e.target.value) || 0)}
+                disabled={running}
+              />
+            </label>
             {!running ? (
-              <button className="btn btn-primary" style={{ fontSize: 18, padding: '16px 28px' }} onClick={start}>
-                Start
+              <button className="btn self-end" style={{ padding: '13px 18px' }} onClick={start}>
+                ▶ Stopwatch
               </button>
             ) : (
-              <button className="btn btn-primary" style={{ fontSize: 18, padding: '16px 28px' }} onClick={stop}>
-                Stop
+              <button className="btn btn-primary self-end" style={{ padding: '13px 18px' }} onClick={stop}>
+                ■ Stop
               </button>
             )}
-            <input
-              className="input w-36"
-              placeholder="Their count"
-              type="number"
-              min={0}
-              value={guess}
-              onChange={(e) => setGuess(e.target.value)}
-            />
+            <label className="flex w-36 flex-col gap-1">
+              <span className="eyebrow">their count</span>
+              <input
+                className="input font-mono"
+                style={{ fontSize: 22 }}
+                type="number"
+                min={0}
+                value={guess}
+                onChange={(e) => setGuess(e.target.value)}
+              />
+            </label>
             <button
-              className="btn btn-primary"
+              className="btn btn-primary self-end"
+              style={{ padding: '13px 22px' }}
               disabled={running || !name.trim() || !guess || seconds <= 0}
               onClick={submit}
             >
@@ -141,13 +153,15 @@ export default function Admin() {
         </div>
 
         {selectedImage && (
-          <div className="card min-h-0 flex-1 overflow-hidden p-4">
-            <span className="eyebrow">current game image (show this to the participant)</span>
-            <img
-              src={selectedImage.image}
-              alt=""
-              className="mt-3 h-[calc(100%-2rem)] w-full rounded-lg object-contain"
-            />
+          <div className="card flex items-center gap-4 p-4">
+            <img src={selectedImage.image} alt="" className="h-36 w-36 rounded-lg object-cover" />
+            <div className="flex flex-col gap-1.5">
+              <span className="eyebrow">reference image</span>
+              <p className="text-sm" style={{ color: 'var(--ngio-muted)', maxWidth: '38ch' }}>
+                Participants count on the printed sheet. Pick the sheet's image here so the
+                score uses the right true count — it stays hidden until the reveal.
+              </p>
+            </div>
           </div>
         )}
       </div>

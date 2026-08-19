@@ -91,13 +91,15 @@ export default function Explore() {
   const cells: Cell[] = features?.cells ?? []
 
   const cappedRegion = useCallback((): Region | null => {
-    if (!viewport || !image) return null
+    if (!image) return null
+    // until the user pans/zooms there is no viewport report: use the image centre
+    const vp = viewport ?? { x: 0, y: 0, width: image.width, height: image.height }
     const cap = 1024
-    const w = Math.min(viewport.width, cap)
-    const h = Math.min(viewport.height, cap)
+    const w = Math.min(vp.width, cap, image.width)
+    const h = Math.min(vp.height, cap, image.height)
     // center the capped region within the viewport
-    const x = Math.max(0, Math.min(image.width - w, viewport.x + Math.floor((viewport.width - w) / 2)))
-    const y = Math.max(0, Math.min(image.height - h, viewport.y + Math.floor((viewport.height - h) / 2)))
+    const x = Math.max(0, Math.min(image.width - w, vp.x + Math.floor((vp.width - w) / 2)))
+    const y = Math.max(0, Math.min(image.height - h, vp.y + Math.floor((vp.height - h) / 2)))
     return { x, y, width: w, height: h }
   }, [viewport, image])
 

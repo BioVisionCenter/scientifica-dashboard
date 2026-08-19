@@ -52,6 +52,14 @@ async def create_entry(body: NewEntry):
     rank, total = db.rank_of(entry["id"])
     entry["rank"] = rank
 
+    # the reveal must play on the leaderboard: move the TV there server-side
+    from scientifica.server import api_explore
+
+    if api_explore._tv_state["scene"] != "leaderboard":
+        api_explore._tv_state["scene"] = "leaderboard"
+        api_explore._tv_state["payload"] = {}
+        await hub.broadcast("scene:set", api_explore._tv_state)
+
     await hub.broadcast(
         "entry:reveal",
         {

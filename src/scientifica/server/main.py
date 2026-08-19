@@ -38,8 +38,17 @@ async def ws(websocket: WebSocket, role: str = "tv"):
 config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/assets", StaticFiles(directory=config.DERIVED_DIR), name="assets")
 
-if FRONTEND_DIST.exists():  # production: serve the built frontend
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+if FRONTEND_DIST.exists():  # production: serve the built frontend with SPA fallback
+    from fastapi.responses import FileResponse
+
+    app.mount("/app", StaticFiles(directory=FRONTEND_DIST / "app"), name="frontend-assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def spa(path: str):
+        candidate = FRONTEND_DIST / path
+        if path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
 
 
 def run() -> None:
