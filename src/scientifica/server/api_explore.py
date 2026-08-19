@@ -1,0 +1,55 @@
+"""Explore endpoints: pipeline manifest + TV scene state + explore mirroring."""
+
+import json
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from scientifica import config
+from scientifica.server.ws import hub
+
+router = APIRouter(prefix="/api")
+
+_tv_state = {"scene": "idle", "payload": {}}
+
+SCENES = ("idle", "explore", "leaderboard", "podium")
+
+
+@router.get("/manifest")
+def manifest():
+    if not config.MANIFEST_PATH.exists():
+        raise HTTPException(503, "pipeline has not been run yet")
+    with open(config.MANIFEST_PATH) as f:
+        return json.load(f)
+
+
+class SceneBody(BaseModel):
+    scene: str
+    payload: dict = {}
+
+
+@router.get("/tv/scene")
+def get_scene():
+    return _tv_state
+
+
+@router.post("/tv/scene")
+async def set_scene(body: SceneBody):
+    if body.scene not in SCENES:
+        raise HTTPException(422, f"scene must be one of {SCENES}")
+    _tv_state["scene"] = body.scene
+    _tv_state["payload"] = body.payload
+    await hub.broadcast("scene:set", _tv_state)
+    return _tv_state
+
+
+class ExploreState(BaseModel):
+    """Free-form explore UI state mirrored from admin/explore to the TV."""
+
+    state: dict
+
+
+@router.post("/tv/explore-sync")
+async def explore_sync(body: ExploreState):
+    await hub.broadcast("explore:sync", body.state)
+    return {"ok": True}

@@ -1,0 +1,9 @@
+data/derived/
+data/*.db
+scietifica_data/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+frontend/dist/
+.DS_Store
