@@ -1,0 +1,52 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ngio typography
+
+   Three families, each with one job. Do not use the display face for body
+   copy or the mono face for anything that runs longer than a line or two.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ngio-font-display: "Space Grotesk", "IBM Plex Sans", system-ui, sans-serif;
+  --ngio-font-body: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --ngio-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Display — headings, the wordmark, card titles. Always 600.
+     Tracking tightens as size grows; these are the tested pairs. */
+  --ngio-display-1: 700 52px/1.05 var(--ngio-font-display);
+  --ngio-display-2: 600 44px/1.08 var(--ngio-font-display);
+  --ngio-display-3: 600 26px/1.15 var(--ngio-font-display);
+  --ngio-display-4: 600 19px/1.25 var(--ngio-font-display);
+
+  --ngio-tracking-display-1: -0.035em;
+  --ngio-tracking-display-2: -0.03em;
+  --ngio-tracking-display-3: -0.022em;
+  --ngio-tracking-display-4: -0.018em;
+
+  /* Body. The lede is the first paragraph after an h1 — cap it at 42ch. */
+  --ngio-lede: 400 21px/1.5 var(--ngio-font-body);
+  --ngio-body: 400 16px/1.6 var(--ngio-font-body);
+  --ngio-body-sm: 400 14.5px/1.6 var(--ngio-font-body);
+  --ngio-caption: 400 13.5px/1.5 var(--ngio-font-body);
+
+  /* Mono. Code, plus eyebrows and metadata — using the mono face for small
+     uppercase labels is a deliberate motif, not an accident. */
+  --ngio-code: 400 13.5px/1.75 var(--ngio-font-mono);
+  --ngio-code-sm: 400 12px/1.6 var(--ngio-font-mono);
+  --ngio-eyebrow: 400 10.5px/1 var(--ngio-font-mono);
+  --ngio-tracking-eyebrow: 0.09em;
+}
+
+/* Eyebrows are always mono, uppercase, tracked out, and --ngio-faint. */
+.ngio-eyebrow {
+  font: var(--ngio-eyebrow);
+  letter-spacing: var(--ngio-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ngio-faint);
+}
+
+/* Long-form copy always gets pretty wrapping — this system runs to narrow
+   measures and ragged last lines show. */
+.ngio-prose p,
+.ngio-prose li {
+  text-wrap: pretty;
+}

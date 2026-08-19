@@ -1,0 +1,152 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ngio colour system
+
+   Light is :root. Dark is [data-ngio-theme="dark"] and also follows the OS
+   preference unless a theme is pinned on an ancestor.
+
+   ── The one rule that matters ──────────────────────────────────────────────
+   Fill tokens and text tokens are SEPARATE and must stay separate.
+
+     --ngio-accent        a FILL. Fails WCAG AA as small text on light surfaces.
+     --ngio-accent-ink    the same hue darkened, for TEXT.
+
+   The same split exists on the four semantic colours (--ngio-blue vs
+   --ngio-blue-t). Collapsing either pair is the single most common way to
+   break this system: it looks fine on a big swatch and fails on 13px code.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── Brand ─────────────────────────────────────────────────────────────
+     Light teal. Sits between the green ngio's own site ran on and the teal
+     the sibling ome-zarr-converters-tools docs use, so it reads as the same
+     family as both without being either. */
+  --ngio-accent: #22a699;
+  --ngio-accent-ink: #16695f;
+  --ngio-accent-soft: #e4f4f2;
+  --ngio-accent-2: #94dad4;
+  --ngio-accent-2-ink: #0f4c45;
+  --ngio-on-accent: #ffffff;
+
+  /* ── Surfaces ──────────────────────────────────────────────────────────
+     Four levels. Cards sit ABOVE the page, insets sit BELOW it. */
+  --ngio-paper: #f9fafa;
+  --ngio-surface: #ffffff;
+  --ngio-sunk: #eff1f1;
+  --ngio-code-bg: #f2f4f4;
+
+  /* ── Text ──────────────────────────────────────────────────────────────
+     --ngio-faint runs as small as 10.5px and lands on --ngio-sunk, the
+     darkest surface it touches. It was tuned against that pairing, not
+     against white. Re-measure against --ngio-sunk if you change it. */
+  --ngio-ink: #101619;
+  --ngio-ink-2: #253034;
+  --ngio-muted: #566065;
+  --ngio-faint: #5b6569;
+
+  /* ── Lines ─────────────────────────────────────────────────────────────
+     This system draws with hairlines, not shadows. --ngio-line is the
+     default; --ngio-line-strong is for controls that need to feel pressable. */
+  --ngio-line: #e3e6e6;
+  --ngio-line-strong: #cfd4d4;
+
+  /* ── Semantic ──────────────────────────────────────────────────────────
+     Deliberately outside the brand palette. In diagrams: blue = pixel data,
+     green = labels, magenta = tables and ROIs. In code: keywords magenta,
+     strings green, functions blue, numbers and constants amber.
+     Keep the diagram mapping consistent — it does real explanatory work. */
+  --ngio-blue: #2e6fd6;
+  --ngio-green: #4cae4f;
+  --ngio-magenta: #c2185b;
+  --ngio-amber: #ffaa00;
+
+  --ngio-blue-t: #2559b0;
+  --ngio-green-t: #357a38;
+  --ngio-magenta-t: #a81050;
+  --ngio-amber-t: #8a5d00;
+
+  /* ── Mark G face tones ─────────────────────────────────────────────────
+     Three levels x three faces. Lit top, mid right, shaded left — one light
+     source, flat opaque fills, no gradients.
+     Separation between levels comes from a wide lightness step; shading
+     within a level is deliberately narrow. If you retune these, keep the
+     span across a level's three faces well below the gap to the next level,
+     or two levels fuse into one mass. */
+  --ngio-mark-3-top: #94dad4;  --ngio-mark-3-right: #8bcdc7;  --ngio-mark-3-left: #82c0bb;
+  --ngio-mark-2-top: #22a699;  --ngio-mark-2-right: #209c90;  --ngio-mark-2-left: #1e9287;
+  --ngio-mark-1-top: #1c7c69;  --ngio-mark-1-right: #1a7563;  --ngio-mark-1-left: #196d5c;
+}
+
+[data-ngio-theme="dark"] {
+  --ngio-accent: #6cc8be;
+  --ngio-accent-ink: #8fd8d0;
+  --ngio-accent-soft: #123330;
+  --ngio-accent-2: #abe4dc;
+  --ngio-accent-2-ink: #abe4dc;
+  --ngio-on-accent: #06211e;
+
+  --ngio-paper: #0b1113;
+  --ngio-surface: #131b1e;
+  --ngio-sunk: #0f1618;
+  --ngio-code-bg: #0f1618;
+
+  --ngio-ink: #e6edee;
+  --ngio-ink-2: #c2ccce;
+  --ngio-muted: #8d999c;
+  --ngio-faint: #808d90;
+
+  --ngio-line: #1d272a;
+  --ngio-line-strong: #2a3639;
+
+  --ngio-blue: #7fa6ff;
+  --ngio-green: #71c174;
+  --ngio-magenta: #f06090;
+  --ngio-amber: #ffc845;
+
+  /* On dark surfaces the fills already clear AA, so fill and text converge.
+     The split only does work on light backgrounds. */
+  --ngio-blue-t: var(--ngio-blue);
+  --ngio-green-t: var(--ngio-green);
+  --ngio-magenta-t: var(--ngio-magenta);
+  --ngio-amber-t: var(--ngio-amber);
+
+  --ngio-mark-3-top: #abe4dc;  --ngio-mark-3-right: #a1d7d0;  --ngio-mark-3-left: #97c8c1;
+  --ngio-mark-2-top: #6cc8be;  --ngio-mark-2-right: #65bcb3;  --ngio-mark-2-left: #5fb0a7;
+  --ngio-mark-1-top: #1f9389;  --ngio-mark-1-right: #1d8a80;  --ngio-mark-1-left: #1b8177;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-ngio-theme="light"]) {
+    --ngio-accent: #6cc8be;
+    --ngio-accent-ink: #8fd8d0;
+    --ngio-accent-soft: #123330;
+    --ngio-accent-2: #abe4dc;
+    --ngio-accent-2-ink: #abe4dc;
+    --ngio-on-accent: #06211e;
+
+    --ngio-paper: #0b1113;
+    --ngio-surface: #131b1e;
+    --ngio-sunk: #0f1618;
+    --ngio-code-bg: #0f1618;
+
+    --ngio-ink: #e6edee;
+    --ngio-ink-2: #c2ccce;
+    --ngio-muted: #8d999c;
+    --ngio-faint: #808d90;
+
+    --ngio-line: #1d272a;
+    --ngio-line-strong: #2a3639;
+
+    --ngio-blue: #7fa6ff;
+    --ngio-green: #71c174;
+    --ngio-magenta: #f06090;
+    --ngio-amber: #ffc845;
+    --ngio-blue-t: var(--ngio-blue);
+    --ngio-green-t: var(--ngio-green);
+    --ngio-magenta-t: var(--ngio-magenta);
+    --ngio-amber-t: var(--ngio-amber);
+
+    --ngio-mark-3-top: #abe4dc;  --ngio-mark-3-right: #a1d7d0;  --ngio-mark-3-left: #97c8c1;
+    --ngio-mark-2-top: #6cc8be;  --ngio-mark-2-right: #65bcb3;  --ngio-mark-2-left: #5fb0a7;
+    --ngio-mark-1-top: #1f9389;  --ngio-mark-1-right: #1d8a80;  --ngio-mark-1-left: #1b8177;
+  }
+}

@@ -21,8 +21,11 @@ class LoadedImage:
 def autocrop_bbox(rgb: np.ndarray) -> tuple[int, int, int, int]:
     """Bounding box (x0, y0, x1, y1) of non-black content, with margin."""
     mask = rgb.sum(axis=2) > config.CROP_THRESHOLD
-    rows = np.flatnonzero(mask.any(axis=1))
-    cols = np.flatnonzero(mask.any(axis=0))
+    # require a minimum fraction of content per row/col so thin artifacts
+    # (scale bars) outside the field don't extend the bbox
+    min_frac = 0.002
+    rows = np.flatnonzero(mask.mean(axis=1) > min_frac)
+    cols = np.flatnonzero(mask.mean(axis=0) > min_frac)
     if len(rows) == 0:
         return 0, 0, rgb.shape[1], rgb.shape[0]
     m = config.CROP_MARGIN

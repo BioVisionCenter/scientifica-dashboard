@@ -1,0 +1,52 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   ngio spacing, radius, shadow, motion
+
+   The system is drawn with hairlines and space. Shadow appears in exactly one
+   place — a card on hover — and nowhere else. If something needs separating,
+   reach for a border or more space before you reach for elevation.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Not a strict 4px grid; these are the values actually in use. */
+  --ngio-space-1: 4px;
+  --ngio-space-2: 8px;
+  --ngio-space-3: 12px;
+  --ngio-space-4: 18px;
+  --ngio-space-5: 22px;
+  --ngio-space-6: 32px;
+  --ngio-space-7: 44px;
+  --ngio-space-8: 64px;
+
+  /* Radius scales with the size of the thing. Inline code is nearly square;
+     cards are the roundest element in the system. Nothing is a pill except
+     the search control. */
+  --ngio-radius-xs: 4px;   /* inline code, symbol chips */
+  --ngio-radius-sm: 5px;   /* badges */
+  --ngio-radius-md: 8px;   /* buttons, search */
+  --ngio-radius-lg: 10px;  /* code blocks, admonitions */
+  --ngio-radius-xl: 12px;  /* cards, footer links */
+  --ngio-radius-2xl: 14px; /* board panels */
+
+  --ngio-border: 1px solid var(--ngio-line);
+  --ngio-border-strong: 1px solid var(--ngio-line-strong);
+
+  /* The only shadow in the system. Hover state on cards. */
+  --ngio-shadow-card: 0 1px 2px rgb(16 22 25 / 5%), 0 8px 24px -12px rgb(16 22 25 / 16%);
+
+  /* Motion is short and understated. No bounce, no spring, no scale on press
+     — hover lifts a card 2px and that is the extent of it. */
+  --ngio-duration: 180ms;
+  --ngio-ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --ngio-transition: var(--ngio-duration) var(--ngio-ease);
+
+  /* Measure. Body copy is capped narrow on purpose. */
+  --ngio-measure-lede: 42ch;
+  --ngio-measure-prose: 66ch;
+  --ngio-content-max: 1440px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ngio-duration: 1ms;
+  }
+}
