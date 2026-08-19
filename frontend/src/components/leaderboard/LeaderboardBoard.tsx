@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'motion/react'
 import type { Entry } from '../../api/types'
+import { copy } from '../../copy'
 
 const MEDALS = ['#ffd700', '#c0c0c0', '#cd7f32']
 
@@ -76,11 +77,17 @@ export function LeaderboardBoard({ entries, big = false, highlightId = null, lim
           )
         })}
       </AnimatePresence>
-      {rows.length === 0 && (
-        <div className="card p-8 text-center" style={{ color: 'var(--ngio-muted)' }}>
-          No entries yet — be the first to play
-        </div>
-      )}
+      {rows.length === 0 &&
+        (big ? (
+          <div className="card flex flex-col gap-1 p-10 text-center" style={{ color: 'var(--ngio-muted)' }}>
+            <span style={{ fontSize: 26 }}>{copy.leaderboard.empty.de}</span>
+            <span style={{ fontSize: 16 }}>{copy.leaderboard.empty.en}</span>
+          </div>
+        ) : (
+          <div className="card p-8 text-center" style={{ color: 'var(--ngio-muted)' }}>
+            {copy.leaderboard.empty.en}
+          </div>
+        ))}
     </div>
   )
 }

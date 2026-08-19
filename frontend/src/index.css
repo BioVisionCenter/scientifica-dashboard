@@ -1,4 +1,5 @@
 @import './styles/colors.css';
+@import './styles/event-tokens.css';
 @import './styles/typography.css';
 @import './styles/spacing.css';
 @import 'tailwindcss';
@@ -18,6 +19,8 @@
   --color-accent: var(--ngio-accent);
   --color-accent-ink: var(--ngio-accent-ink);
   --color-accent-soft: var(--ngio-accent-soft);
+  --color-accent-2: var(--ccc-magenta);
+  --color-accent-2-ink: var(--ccc-magenta-ink);
   --color-on-accent: var(--ngio-on-accent);
   --color-blue: var(--ngio-blue);
   --color-green: var(--ngio-green);
@@ -100,11 +103,17 @@ body {
   outline-offset: -1px;
 }
 
-/* TV surface: no cursor, no scrollbars, no selection */
+/* TV surface: no cursor, no scrollbars, no selection, no touch scroll */
 .tv-mode {
   cursor: none;
   user-select: none;
   overflow: hidden;
+  touch-action: none;
+}
+
+html,
+body {
+  overscroll-behavior: none;
 }
 
 input[type='range'] {

@@ -1,0 +1,32 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Cell Count Championship — event identity tokens
+
+   Derived from the data itself: nuclei render cyan, membranes magenta in
+   the booth's fluorescence composites. Raw #00FFFF / #FF00FF fail as UI
+   tones, so these are desaturated/lightness-tuned for the pinned dark
+   theme. The --ngio-accent* family is re-pointed here so every existing
+   component recolors without churn; surfaces/ink/lines stay ngio.
+
+   Must be imported AFTER colors.css.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+[data-ngio-theme="dark"] {
+  /* primary accent — nuclei cyan */
+  --ccc-cyan: #3fd0e4;        /* fills: primary buttons, dots, bars, outlines */
+  --ccc-cyan-ink: #7ee2f0;    /* text: counts, scores, links */
+  --ccc-cyan-soft: #0d3038;   /* soft backgrounds: active buttons, score bars */
+  --ccc-on-cyan: #04191d;     /* text on cyan fills */
+
+  /* secondary accent — membrane magenta */
+  --ccc-magenta: #e878d2;     /* fills: hover outline, live badge, CTA glow, confetti */
+  --ccc-magenta-ink: #f2a4e2; /* text */
+  --ccc-magenta-soft: #331229;
+
+  /* re-point the ngio accent family so existing components recolor */
+  --ngio-accent: var(--ccc-cyan);
+  --ngio-accent-ink: var(--ccc-cyan-ink);
+  --ngio-accent-soft: var(--ccc-cyan-soft);
+  --ngio-accent-2: var(--ccc-magenta);
+  --ngio-accent-2-ink: var(--ccc-magenta-ink);
+  --ngio-on-accent: var(--ccc-on-cyan);
+}

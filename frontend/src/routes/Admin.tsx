@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { useWebsocket } from '../api/ws'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type { GameImage, Scene } from '../api/types'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
-import { Wordmark } from '../components/common/Wordmark'
+import { timeAgo } from '../lib/time'
 
 const SCENES: Scene[] = ['idle', 'explore', 'leaderboard', 'podium']
 
 export default function Admin() {
-  useWebsocket('admin')
   const entries = useAppStore((s) => s.entries)
   const scene = useAppStore((s) => s.scene)
-  const connected = useAppStore((s) => s.connected)
 
   const [images, setImages] = useState<GameImage[]>([])
   const [imageId, setImageId] = useState('')
@@ -21,6 +18,8 @@ export default function Admin() {
   const [seconds, setSeconds] = useState(0)
   const [running, setRunning] = useState(false)
   const [lastResult, setLastResult] = useState<string | null>(null)
+  const [lastEntryId, setLastEntryId] = useState<number | null>(null)
+  const [dupWarning, setDupWarning] = useState(false)
   const startRef = useRef(0)
 
   useEffect(() => {
@@ -36,6 +35,33 @@ export default function Admin() {
     return () => clearInterval(t)
   }, [running])
 
+  // re-render every 30s so relative times stay fresh
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 30000)
+    return () => clearInterval(t)
+  }, [])
+
+  const undoLast = async () => {
+    if (lastEntryId === null) return
+    await api.deleteEntry(lastEntryId).catch(() => {})
+    setLastEntryId(null)
+    setLastResult('last entry removed')
+  }
+
+  // Cmd/Ctrl+Z outside inputs = undo last submitted entry
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const inInput = (e.target as HTMLElement)?.tagName?.match(/INPUT|SELECT|TEXTAREA/)
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !inInput) {
+        e.preventDefault()
+        void undoLast()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
+
   const start = () => {
     startRef.current = Date.now()
     setSeconds(0)
@@ -45,12 +71,19 @@ export default function Admin() {
 
   const submit = async () => {
     if (!name.trim() || !guess || seconds <= 0) return
+    const isDuplicate = entries.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())
+    if (isDuplicate && !dupWarning) {
+      setDupWarning(true)
+      return
+    }
+    setDupWarning(false)
     const res = await api.addEntry({
       name: name.trim(),
       game_image_id: imageId,
       guess: parseInt(guess, 10),
       time_seconds: Math.round(seconds * 10) / 10,
     })
+    setLastEntryId(res.entry.id)
     setLastResult(
       `${res.entry.name}: rank ${res.rank}/${res.total} — score ${res.entry.score} (true count ${res.true_count})`,
     )
@@ -59,29 +92,30 @@ export default function Admin() {
     setSeconds(0)
   }
 
+  const removeEntry = async (id: number, entryName: string) => {
+    if (!window.confirm(`Delete ${entryName}'s entry?`)) return
+    await api.deleteEntry(id)
+    if (id === lastEntryId) setLastEntryId(null)
+  }
+
   const selectedImage = images.find((i) => i.id === imageId)
+  const patchChip = (id: string, boss: boolean) =>
+    boss ? 'BOSS' : `#${id.replace('patch_', '')}`
 
   return (
-    <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-6">
+    <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
       <div className="flex min-h-0 flex-col gap-5">
-        <div className="flex items-center justify-between">
-          <Wordmark size={26} label="game admin" />
-          <div className="flex items-center gap-2">
-            <span className="eyebrow">tv scene</span>
-            {SCENES.map((s) => (
-              <button
-                key={s}
-                className={`btn ${scene === s ? 'btn-active' : ''}`}
-                onClick={() => api.setScene(s)}
-              >
-                {s}
-              </button>
-            ))}
-            <span
-              className="ml-2 inline-block h-2.5 w-2.5 rounded-full"
-              style={{ background: connected ? 'var(--ngio-green)' : 'var(--ngio-magenta)' }}
-            />
-          </div>
+        <div className="flex items-center gap-2">
+          <span className="eyebrow">tv scene</span>
+          {SCENES.map((s) => (
+            <button
+              key={s}
+              className={`btn ${scene === s ? 'btn-active' : ''}`}
+              onClick={() => api.setScene(s)}
+            >
+              {s}
+            </button>
+          ))}
         </div>
 
         <div className="card flex flex-col gap-4 p-5">
@@ -98,7 +132,10 @@ export default function Admin() {
               className="input flex-1"
               placeholder="Participant name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value)
+                setDupWarning(false)
+              }}
             />
           </div>
           <div className="flex items-center gap-3">
@@ -145,11 +182,25 @@ export default function Admin() {
               Submit
             </button>
           </div>
-          {lastResult && (
-            <div className="font-mono text-sm" style={{ color: 'var(--ngio-accent-ink)' }}>
-              {lastResult}
+          {dupWarning && (
+            <div className="text-sm" style={{ color: 'var(--ngio-amber)' }}>
+              "{name.trim()}" is already on the board — click Submit again to add anyway.
             </div>
           )}
+          <div className="flex items-center justify-between">
+            {lastResult ? (
+              <span className="font-mono text-sm" style={{ color: 'var(--ngio-accent-ink)' }}>
+                {lastResult}
+              </span>
+            ) : (
+              <span />
+            )}
+            {lastEntryId !== null && (
+              <button className="btn" style={{ padding: '5px 12px', fontSize: 12.5 }} onClick={undoLast}>
+                ⌘Z undo last entry
+              </button>
+            )}
+          </div>
         </div>
 
         {selectedImage && (
@@ -167,33 +218,48 @@ export default function Admin() {
       </div>
 
       <div className="flex min-h-0 flex-col gap-4">
-        <span className="eyebrow">entries (click × to remove)</span>
+        <span className="eyebrow">entries</span>
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="flex flex-col gap-2">
-            {entries.map((e) => (
-              <div key={e.id} className="card flex items-center gap-3 px-4 py-2 text-sm">
-                <span className="w-8 font-mono" style={{ color: 'var(--ngio-faint)' }}>
-                  {e.rank}
-                </span>
-                <span className="flex-1 truncate font-medium">{e.name}</span>
-                <span className="font-mono" style={{ color: 'var(--ngio-muted)' }}>
-                  {e.guess} in {e.time_seconds.toFixed(1)}s
-                </span>
-                <span className="font-mono font-medium" style={{ color: 'var(--ngio-accent-ink)' }}>
-                  {e.score}
-                </span>
-                <button
-                  className="btn"
-                  style={{ padding: '4px 10px' }}
-                  onClick={() => api.deleteEntry(e.id)}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+            {entries.map((e) => {
+              const img = images.find((i) => i.id === e.game_image_id)
+              return (
+                <div key={e.id} className="card flex items-center gap-3 px-4 py-2 text-sm">
+                  <span className="w-7 font-mono" style={{ color: 'var(--ngio-faint)' }}>
+                    {e.rank}
+                  </span>
+                  <span className="flex-1 truncate font-medium">{e.name}</span>
+                  <span
+                    className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
+                    style={{
+                      background: img?.boss ? 'var(--ccc-magenta-soft)' : 'var(--ngio-sunk)',
+                      color: img?.boss ? 'var(--ccc-magenta-ink)' : 'var(--ngio-faint)',
+                    }}
+                  >
+                    {patchChip(e.game_image_id, !!img?.boss)}
+                  </span>
+                  <span className="font-mono text-[11px]" style={{ color: 'var(--ngio-faint)' }}>
+                    {timeAgo(e.created_at)}
+                  </span>
+                  <span className="font-mono" style={{ color: 'var(--ngio-muted)' }}>
+                    {e.guess} in {e.time_seconds.toFixed(1)}s
+                  </span>
+                  <span className="font-mono font-medium" style={{ color: 'var(--ngio-accent-ink)' }}>
+                    {e.score}
+                  </span>
+                  <button
+                    className="btn"
+                    style={{ padding: '4px 10px' }}
+                    onClick={() => removeEntry(e.id, e.name)}
+                  >
+                    ×
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </div>
-        <div className="max-h-[40%] overflow-y-auto">
+        <div className="max-h-[38%] overflow-y-auto">
           <span className="eyebrow">tv preview</span>
           <div className="mt-2">
             <LeaderboardBoard entries={entries} limit={5} />

@@ -4,10 +4,14 @@ import { useWebsocket } from '../api/ws'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type { Manifest, ManifestImage } from '../api/types'
+import { copy } from '../copy'
+import { BiText } from '../components/common/BiText'
+import { EventMark } from '../components/common/EventMark'
+import { PoweredBy } from '../components/common/PoweredBy'
+import { IdleShow } from '../components/tv/IdleShow'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { RevealOverlay } from '../components/leaderboard/RevealOverlay'
 import { Podium } from '../components/leaderboard/Podium'
-import { Wordmark } from '../components/common/Wordmark'
 
 export default function Tv() {
   useWebsocket('tv')
@@ -15,71 +19,69 @@ export default function Tv() {
   const connected = useAppStore((s) => s.connected)
 
   const [manifest, setManifest] = useState<Manifest | null>(null)
+  const [manifestFailed, setManifestFailed] = useState(false)
   useEffect(() => {
-    api.manifest().then(setManifest).catch(console.error)
+    api
+      .manifest()
+      .then(setManifest)
+      .catch(() => setManifestFailed(true))
   }, [])
+
+  // the banner only appears after we were connected once (or 4s passed)
+  const [bannerArmed, setBannerArmed] = useState(false)
+  useEffect(() => {
+    if (connected) setBannerArmed(true)
+    const t = setTimeout(() => setBannerArmed(true), 4000)
+    return () => clearTimeout(t)
+  }, [connected])
+
+  const noData = manifestFailed || (manifest !== null && manifest.images.length === 0)
 
   return (
     <div className="tv-mode relative h-full" style={{ background: 'var(--ngio-paper)' }}>
-      <AnimatePresence initial={false}>
-        <motion.div
-          key={scene}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.45 }}
-          className="absolute inset-0"
-        >
-          {scene === 'idle' && <IdleScene manifest={manifest} />}
-          {scene === 'explore' && <ExploreScene manifest={manifest} />}
-          {scene === 'leaderboard' && <LeaderboardScene />}
-          {scene === 'podium' && <PodiumScene />}
-        </motion.div>
+      {noData ? (
+        <div className="flex h-full flex-col items-center justify-center gap-6">
+          <EventMark size={44} />
+          <BiText text={copy.status.noData} size={26} />
+        </div>
+      ) : (
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={scene}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45 }}
+            className="absolute inset-0"
+          >
+            {scene === 'idle' && manifest && <IdleShow manifest={manifest} />}
+            {scene === 'explore' && <ExploreScene manifest={manifest} />}
+            {scene === 'leaderboard' && <LeaderboardScene />}
+            {scene === 'podium' && <PodiumScene />}
+          </motion.div>
+        </AnimatePresence>
+      )}
+
+      <AnimatePresence>
+        {!connected && bannerArmed && (
+          <motion.div
+            initial={{ opacity: 0, y: -24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            className="absolute top-5 left-1/2 z-50 -translate-x-1/2 rounded-lg px-5 py-2.5"
+            style={{ background: 'var(--ccc-magenta-soft)', border: '1px solid var(--ccc-magenta)' }}
+          >
+            <span className="font-body" style={{ fontSize: 16, color: 'var(--ccc-magenta-ink)' }}>
+              {copy.status.reconnecting.de} · {copy.status.reconnecting.en}
+            </span>
+          </motion.div>
+        )}
       </AnimatePresence>
+
       <div
         className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full"
         style={{ background: connected ? 'var(--ngio-green)' : 'var(--ngio-magenta)', opacity: 0.7 }}
       />
-    </div>
-  )
-}
-
-function IdleScene({ manifest }: { manifest: Manifest | null }) {
-  const hero = manifest?.images.find((i) => i.hero) ?? manifest?.images[0]
-  return (
-    <div className="relative h-full overflow-hidden">
-      {hero && (
-        <motion.img
-          src={hero.assets.enhanced}
-          alt=""
-          className="absolute inset-0 h-full w-full object-cover"
-          initial={{ scale: 1.35 }}
-          animate={{ scale: [1.35, 1.5, 1.35], x: [0, -50, 30, 0], y: [0, 35, -25, 0] }}
-          transition={{ duration: 90, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ opacity: 0.55 }}
-        />
-      )}
-      <div
-        className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, rgba(11,17,19,0.82) 0%, rgba(11,17,19,0.25) 65%, rgba(11,17,19,0.55) 100%)' }}
-      />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-8">
-        <Wordmark size={72} />
-        <h1
-          className="max-w-4xl text-center font-display font-bold"
-          style={{ fontSize: 76, lineHeight: 1.05, letterSpacing: '-0.035em' }}
-        >
-          How many cells do you see?
-        </h1>
-        <p className="font-body" style={{ fontSize: 30, color: 'var(--ngio-ink-2)' }}>
-          Come play — count the cells, beat the clock, beat the algorithm.
-        </p>
-        {hero && (
-          <p className="eyebrow" style={{ fontSize: 16 }}>
-            this image contains {hero.cell_count.toLocaleString()} cells — a computer counted them in 2 minutes
-          </p>
-        )}
-      </div>
     </div>
   )
 }
@@ -97,11 +99,11 @@ function ExploreScene({ manifest }: { manifest: Manifest | null }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-10 pt-6 pb-4">
-        <Wordmark size={34} label="image analysis, live" />
+        <EventMark size={30} label="image analysis, live" />
         <span className="font-display font-semibold" style={{ fontSize: 30, letterSpacing: '-0.022em' }}>
           {image.title}
           {(step === 'segmented' || step === 'measured') && (
-            <span style={{ color: 'var(--ngio-accent)' }}> — {image.cell_count.toLocaleString()} cells found</span>
+            <span style={{ color: 'var(--ccc-cyan-ink)' }}> — {image.cell_count.toLocaleString()} cells found</span>
           )}
         </span>
       </div>
@@ -144,10 +146,10 @@ function LeaderboardScene() {
 
   return (
     <div className="relative mx-auto flex h-full max-w-5xl flex-col px-12 py-10">
-      <div className="mb-8 flex items-end justify-between">
-        <Wordmark size={40} label="cell counting championship" />
-        <span className="eyebrow" style={{ fontSize: 15 }}>
-          score = accuracy × speed
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <EventMark size={38} label={copy.leaderboard.heading.de} />
+        <span className="eyebrow whitespace-nowrap" style={{ fontSize: 14 }}>
+          {copy.leaderboard.scoring.de}
         </span>
       </div>
       <LeaderboardBoard entries={entries} big highlightId={highlightId} limit={10} />
@@ -159,9 +161,12 @@ function LeaderboardScene() {
 function PodiumScene() {
   const entries = useAppStore((s) => s.entries)
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-16">
-      <Wordmark size={44} label="final standings" />
+    <div className="relative flex h-full flex-col items-center justify-center gap-16">
+      <EventMark size={42} label={copy.podium.heading.de} />
       <Podium entries={entries} />
+      <div className="absolute bottom-6">
+        <PoweredBy size={12} />
+      </div>
     </div>
   )
 }

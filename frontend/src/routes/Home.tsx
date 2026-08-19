@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Wordmark } from '../components/common/Wordmark'
+import { EventMark } from '../components/common/EventMark'
+import { PoweredBy } from '../components/common/PoweredBy'
 
 const LINKS = [
+  { to: '/admin', title: 'Game admin', desc: 'Run the counting game: stopwatch, entries, TV control' },
   { to: '/explore', title: 'Explore', desc: 'Step through the analysis pipeline on the operator screen' },
-  { to: '/admin', title: 'Admin', desc: 'Run the counting game: stopwatch, entries, TV control' },
   { to: '/tv', title: 'TV', desc: 'Fullscreen kiosk view — open this on the big screen' },
   { to: '/leaderboard', title: 'Leaderboard', desc: 'Standalone ranked board' },
 ]
@@ -11,7 +12,7 @@ const LINKS = [
 export default function Home() {
   return (
     <div className="mx-auto flex h-full max-w-3xl flex-col justify-center gap-8 px-8">
-      <Wordmark size={40} label="scientifica booth" />
+      <EventMark size={42} />
       <div className="grid grid-cols-2 gap-4">
         {LINKS.map((l) => (
           <Link
@@ -29,6 +30,7 @@ export default function Home() {
           </Link>
         ))}
       </div>
+      <PoweredBy />
     </div>
   )
 }

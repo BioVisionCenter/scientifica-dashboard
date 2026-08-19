@@ -13,6 +13,10 @@ export interface Region {
   height: number
 }
 
+export interface StageApi {
+  zoomToCell: (cell: Cell) => void
+}
+
 interface Props {
   image: ManifestImage
   step: PipelineStep
@@ -27,31 +31,80 @@ interface Props {
   interactive?: boolean
   onCellClick?: (label: number | null) => void
   onViewportChange?: (region: Region) => void
+  apiRef?: React.MutableRefObject<StageApi | null>
 }
 
 /** Layered pan/zoom stage: base image, comparison clip, overlays, SVG highlights. */
 export function ImageStage(props: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [fitScale, setFitScale] = useState<number | null>(null)
+  const wrapperRef = useRef<ReactZoomPanPinchRef | null>(null)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  const fitScale = size
+    ? Math.min(size.w / props.image.width, size.h / props.image.height)
+    : null
+
+  // re-center imperatively whenever the container geometry changes:
+  // initialPosition props race against layout changes (e.g. step switches)
+  useEffect(() => {
+    if (fitScale === null || !size) return
+    const t = setTimeout(() => {
+      const el = containerRef.current
+      const wrapper = wrapperRef.current
+      if (!el || !wrapper) return
+      wrapper.setTransform(
+        (el.clientWidth - props.image.width * fitScale) / 2,
+        (el.clientHeight - props.image.height * fitScale) / 2,
+        fitScale,
+        0,
+      )
+    }, 60)
+    return () => clearTimeout(t)
+  }, [fitScale, size?.w, size?.h, props.image.id])
+
+  useEffect(() => {
+    const apiRef = props.apiRef
+    if (!apiRef) return
+    apiRef.current = {
+      zoomToCell: (cell) => {
+        const el = containerRef.current
+        const wrapper = wrapperRef.current
+        if (!el || !wrapper || fitScale === null) return
+        const [x0, y0, x1, y1] = cell.bbox
+        const cx = (x0 + x1) / 2
+        const cy = (y0 + y1) / 2
+        const bboxH = Math.max(24, y1 - y0)
+        // cell ends up ~1/3 of the viewport height, clamped to wrapper limits
+        const scale = Math.min(8, Math.max(fitScale * 0.8, el.clientHeight / (bboxH * 3)))
+        wrapper.setTransform(
+          el.clientWidth / 2 - cx * scale,
+          el.clientHeight / 2 - cy * scale,
+          scale,
+          350,
+          'easeOut',
+        )
+      },
+    }
+    return () => {
+      apiRef.current = null
+    }
+  }, [fitScale, props.image.id, props.apiRef])
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const compute = () =>
-      setFitScale(
-        Math.min(el.clientWidth / props.image.width, el.clientHeight / props.image.height),
-      )
+    const compute = () => setSize({ w: el.clientWidth, h: el.clientHeight })
     compute()
     const obs = new ResizeObserver(compute)
     obs.observe(el)
     return () => obs.disconnect()
-  }, [props.image.id, props.image.width, props.image.height])
+  }, [])
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-black/60">
       {fitScale !== null && (
         <TransformWrapper
-          key={`${props.image.id}-${fitScale.toFixed(4)}`}
+          key={props.image.id}
+          ref={wrapperRef}
           initialScale={fitScale}
           initialPositionX={(containerRef.current!.clientWidth - props.image.width * fitScale) / 2}
           initialPositionY={(containerRef.current!.clientHeight - props.image.height * fitScale) / 2}
@@ -196,7 +249,7 @@ function StageContent(props: Props) {
               {selected && (
                 <polygon
                   points={selected.polygon.map((p) => p.join(',')).join(' ')}
-                  fill="rgba(108, 200, 190, 0.25)"
+                  fill="rgba(63, 208, 228, 0.25)"
                   stroke="var(--ngio-accent)"
                   strokeWidth={4}
                   style={{ filter: 'drop-shadow(0 0 6px var(--ngio-accent))' }}
