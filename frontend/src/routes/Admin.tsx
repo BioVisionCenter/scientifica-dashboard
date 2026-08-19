@@ -2,14 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type { GameImage, Scene } from '../api/types'
+import type { TvLang } from '../copy'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { timeAgo } from '../lib/time'
 
 const SCENES: Scene[] = ['idle', 'explore', 'leaderboard', 'podium']
+const LANGS: { key: TvLang; label: string }[] = [
+  { key: 'de', label: 'DE' },
+  { key: 'en', label: 'EN' },
+  { key: 'bi', label: 'DE+EN' },
+]
 
 export default function Admin() {
   const entries = useAppStore((s) => s.entries)
   const scene = useAppStore((s) => s.scene)
+  const lang = useAppStore((s) => s.lang)
 
   const [images, setImages] = useState<GameImage[]>([])
   const [imageId, setImageId] = useState('')
@@ -105,7 +112,7 @@ export default function Admin() {
   return (
     <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
       <div className="flex min-h-0 flex-col gap-5">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="eyebrow">tv scene</span>
           {SCENES.map((s) => (
             <button
@@ -114,6 +121,16 @@ export default function Admin() {
               onClick={() => api.setScene(s)}
             >
               {s}
+            </button>
+          ))}
+          <span className="eyebrow ml-4">tv language</span>
+          {LANGS.map((l) => (
+            <button
+              key={l.key}
+              className={`btn ${lang === l.key ? 'btn-active' : ''}`}
+              onClick={() => api.setLang(l.key)}
+            >
+              {l.label}
             </button>
           ))}
         </div>

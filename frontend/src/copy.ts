@@ -6,6 +6,15 @@ export interface Bi {
   en: string
 }
 
+export type TvLang = 'de' | 'en' | 'bi'
+
+/** One-line rendering of a bilingual string for the given TV language. */
+export function biLine(t: Bi, lang: TvLang): string {
+  if (lang === 'de') return t.de
+  if (lang === 'en') return t.en
+  return `${t.de} · ${t.en}`
+}
+
 export function ordinal(n: number): string {
   if (n % 10 === 1 && n % 100 !== 11) return `${n}st`
   if (n % 10 === 2 && n % 100 !== 12) return `${n}nd`

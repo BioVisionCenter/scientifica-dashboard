@@ -20,6 +20,7 @@ export function useWebsocket(role: 'tv' | 'admin') {
           api.exploreState(),
         ])
         store().setScene(scene.scene, scene.payload)
+        if (scene.lang) store().setLang(scene.lang)
         store().setEntries(entries)
         if (exploreState && Object.keys(exploreState).length) store().setExploreSync(exploreState)
       } catch {
@@ -51,6 +52,9 @@ export function useWebsocket(role: 'tv' | 'admin') {
         switch (type) {
           case 'scene:set':
             s.setScene(payload.scene as Scene, payload.payload ?? {})
+            break
+          case 'lang:set':
+            s.setLang(payload.lang)
             break
           case 'leaderboard:update':
             s.setEntries(payload.entries as Entry[])

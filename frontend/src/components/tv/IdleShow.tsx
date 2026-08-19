@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence, animate } from 'motion/react'
 import type { Manifest, ManifestImage } from '../../api/types'
 import { useAppStore } from '../../stores/appStore'
-import { copy } from '../../copy'
+import { biLine, copy } from '../../copy'
 import { BiText } from '../common/BiText'
 import { EventMark } from '../common/EventMark'
 import { PoweredBy } from '../common/PoweredBy'
@@ -170,6 +170,7 @@ function EnhanceSlide({ slide, kb }: { slide: Slide; kb: number }) {
 
 function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
   const [count, setCount] = useState(0)
+  const lang = useAppStore((s) => s.lang)
   useEffect(() => {
     const counter = animate(0, slide.image.cell_count, {
       delay: 2,
@@ -198,7 +199,9 @@ function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
         >
           {count.toLocaleString()}
         </span>
-        <span className="eyebrow" style={{ fontSize: 15 }}>Zellen · cells</span>
+        <span className="eyebrow" style={{ fontSize: 15 }}>
+          {biLine({ de: 'Zellen', en: 'cells' }, lang)}
+        </span>
       </div>
       <CaptionBar>
         <BiText text={copy.idle.segTeaser(slide.image.cell_count)} size={26} align="left" />
@@ -210,6 +213,7 @@ function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
 
 function CtaSlide({ slide }: { slide: Slide }) {
   const entries = useAppStore((s) => s.entries)
+  const lang = useAppStore((s) => s.lang)
   const champion = entries[0]
   return (
     <>
@@ -230,7 +234,7 @@ function CtaSlide({ slide }: { slide: Slide }) {
             className="font-mono"
             style={{ fontSize: 22, color: 'var(--ccc-magenta-ink)' }}
           >
-            {copy.idle.champion(champion.name).de} — {champion.score}
+            {biLine(copy.idle.champion(champion.name), lang)} — {champion.score}
           </motion.span>
         )}
         <div className="absolute bottom-8">

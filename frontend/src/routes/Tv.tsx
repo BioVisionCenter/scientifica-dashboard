@@ -4,7 +4,7 @@ import { useWebsocket } from '../api/ws'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type { Manifest } from '../api/types'
-import { copy } from '../copy'
+import { biLine, copy } from '../copy'
 import { BiText } from '../components/common/BiText'
 import { EventMark } from '../components/common/EventMark'
 import { PoweredBy } from '../components/common/PoweredBy'
@@ -17,6 +17,7 @@ import { Podium } from '../components/leaderboard/Podium'
 export default function Tv() {
   useWebsocket('tv')
   const scene = useAppStore((s) => s.scene)
+  const lang = useAppStore((s) => s.lang)
   const connected = useAppStore((s) => s.connected)
 
   const [manifest, setManifest] = useState<Manifest | null>(null)
@@ -73,7 +74,7 @@ export default function Tv() {
             style={{ background: 'var(--ccc-magenta-soft)', border: '1px solid var(--ccc-magenta)' }}
           >
             <span className="font-body" style={{ fontSize: 16, color: 'var(--ccc-magenta-ink)' }}>
-              {copy.status.reconnecting.de} · {copy.status.reconnecting.en}
+              {biLine(copy.status.reconnecting, lang)}
             </span>
           </motion.div>
         )}
@@ -89,6 +90,7 @@ export default function Tv() {
 
 function LeaderboardScene() {
   const entries = useAppStore((s) => s.entries)
+  const lang = useAppStore((s) => s.lang)
   const reveal = useAppStore((s) => s.reveal)
   const setReveal = useAppStore((s) => s.setReveal)
   const [highlightId, setHighlightId] = useState<number | null>(null)
@@ -103,9 +105,9 @@ function LeaderboardScene() {
   return (
     <div className="relative mx-auto flex h-full max-w-5xl flex-col px-12 py-10">
       <div className="mb-8 flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
-        <EventMark size={38} label={copy.leaderboard.heading.de} />
+        <EventMark size={38} label={biLine(copy.leaderboard.heading, lang)} />
         <span className="eyebrow whitespace-nowrap" style={{ fontSize: 14 }}>
-          {copy.leaderboard.scoring.de}
+          {biLine(copy.leaderboard.scoring, lang)}
         </span>
       </div>
       <LeaderboardBoard entries={entries} big highlightId={highlightId} limit={10} />
@@ -116,9 +118,10 @@ function LeaderboardScene() {
 
 function PodiumScene() {
   const entries = useAppStore((s) => s.entries)
+  const lang = useAppStore((s) => s.lang)
   return (
     <div className="relative flex h-full flex-col items-center justify-center gap-16">
-      <EventMark size={42} label={copy.podium.heading.de} />
+      <EventMark size={42} label={biLine(copy.podium.heading, lang)} />
       <Podium entries={entries} />
       <div className="absolute bottom-6">
         <PoweredBy size={12} />

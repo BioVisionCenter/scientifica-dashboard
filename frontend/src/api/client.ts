@@ -1,4 +1,5 @@
 import type { Cell, Entry, FeaturesFile, GameImage, LiveEnhance, Manifest, RevealPayload, Scene } from './types'
+import type { TvLang } from '../copy'
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
@@ -20,7 +21,16 @@ export const api = {
     }).then((r) => json<RevealPayload & { entry: Entry }>(r)),
   deleteEntry: (id: number) => fetch(`/api/game/entries/${id}`, { method: 'DELETE' }).then((r) => json(r)),
 
-  getScene: () => fetch('/api/tv/scene').then((r) => json<{ scene: Scene; payload: Record<string, unknown> }>(r)),
+  getScene: () =>
+    fetch('/api/tv/scene').then((r) =>
+      json<{ scene: Scene; payload: Record<string, unknown>; lang?: TvLang }>(r),
+    ),
+  setLang: (lang: TvLang) =>
+    fetch('/api/tv/lang', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang }),
+    }).then((r) => json(r)),
   setScene: (scene: Scene, payload: Record<string, unknown> = {}) =>
     fetch('/api/tv/scene', {
       method: 'POST',

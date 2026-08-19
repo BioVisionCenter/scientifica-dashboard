@@ -10,9 +10,10 @@ from scientifica.server.ws import hub
 
 router = APIRouter(prefix="/api")
 
-_tv_state = {"scene": "idle", "payload": {}}
+_tv_state = {"scene": "idle", "payload": {}, "lang": "bi"}
 
 SCENES = ("idle", "explore", "leaderboard", "podium")
+LANGS = ("de", "en", "bi")
 
 
 @router.get("/manifest")
@@ -40,6 +41,19 @@ async def set_scene(body: SceneBody):
     _tv_state["scene"] = body.scene
     _tv_state["payload"] = body.payload
     await hub.broadcast("scene:set", _tv_state)
+    return _tv_state
+
+
+class LangBody(BaseModel):
+    lang: str
+
+
+@router.post("/tv/lang")
+async def set_lang(body: LangBody):
+    if body.lang not in LANGS:
+        raise HTTPException(422, f"lang must be one of {LANGS}")
+    _tv_state["lang"] = body.lang
+    await hub.broadcast("lang:set", {"lang": body.lang})
     return _tv_state
 
 
