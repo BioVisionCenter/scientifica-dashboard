@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import type { Cell, LiveResult, ManifestImage, PipelineStep } from '../../api/types'
+import type { Cell, LiveEnhance, LiveResult, ManifestImage, PipelineStep, StageView } from '../../api/types'
 import { useLabelLookup } from './useLabelLookup'
 
 export type OverlayMode = 'none' | 'outlines' | 'mask'
@@ -26,12 +26,15 @@ interface Props {
   selectedLabel: number | null
   hoveredLabel: number | null
   liveResult?: LiveResult | null
-  liveEnhancedUrl?: string | null
-  liveRegion?: Region | null
+  liveEnhance?: LiveEnhance | null
   interactive?: boolean
   onCellClick?: (label: number | null) => void
   onViewportChange?: (region: Region) => void
   apiRef?: React.MutableRefObject<StageApi | null>
+  /** mirror mode: follow this normalized view */
+  view?: StageView | null
+  /** operator mode: report the normalized view (throttled) */
+  onViewChange?: (v: StageView) => void
 }
 
 /** Layered pan/zoom stage: base image, comparison clip, overlays, SVG highlights. */
@@ -46,7 +49,7 @@ export function ImageStage(props: Props) {
   // re-center imperatively whenever the container geometry changes:
   // initialPosition props race against layout changes (e.g. step switches)
   useEffect(() => {
-    if (fitScale === null || !size) return
+    if (fitScale === null || !size || props.view) return
     const t = setTimeout(() => {
       const el = containerRef.current
       const wrapper = wrapperRef.current
@@ -59,7 +62,27 @@ export function ImageStage(props: Props) {
       )
     }, 60)
     return () => clearTimeout(t)
-  }, [fitScale, size?.w, size?.h, props.image.id])
+  }, [fitScale, size?.w, size?.h, props.image.id, !!props.view])
+
+  // mirror mode: follow the operator's normalized view
+  useEffect(() => {
+    const v = props.view
+    if (!v || fitScale === null || !size) return
+    const t = setTimeout(() => {
+      const el = containerRef.current
+      const wrapper = wrapperRef.current
+      if (!el || !wrapper) return
+      const scale = v.zoomRel * fitScale
+      wrapper.setTransform(
+        el.clientWidth / 2 - v.cx * scale,
+        el.clientHeight / 2 - v.cy * scale,
+        scale,
+        180,
+        'easeOut',
+      )
+    }, 30)
+    return () => clearTimeout(t)
+  }, [props.view?.cx, props.view?.cy, props.view?.zoomRel, fitScale, size?.w, size?.h, props.image.id])
 
   useEffect(() => {
     const apiRef = props.apiRef
@@ -99,6 +122,41 @@ export function ImageStage(props: Props) {
     return () => obs.disconnect()
   }, [])
 
+  const lastViewSent = useRef(0)
+  const pendingView = useRef<StageView | null>(null)
+  const viewTimer = useRef<number | null>(null)
+  const handleTransform = useCallback(
+    (ref: ReactZoomPanPinchRef) => {
+      const el = containerRef.current
+      if (!el) return
+      reportViewport(ref, props, el)
+      const onViewChange = props.onViewChange
+      if (onViewChange && fitScale) {
+        const { positionX, positionY, scale } = ref.state
+        const view: StageView = {
+          cx: (el.clientWidth / 2 - positionX) / scale,
+          cy: (el.clientHeight / 2 - positionY) / scale,
+          zoomRel: scale / fitScale,
+        }
+        pendingView.current = view
+        const now = Date.now()
+        if (now - lastViewSent.current > 120) {
+          lastViewSent.current = now
+          onViewChange(view)
+        }
+        // trailing send so the final resting view always mirrors
+        if (viewTimer.current) window.clearTimeout(viewTimer.current)
+        viewTimer.current = window.setTimeout(() => {
+          if (pendingView.current) {
+            lastViewSent.current = Date.now()
+            onViewChange(pendingView.current)
+          }
+        }, 160)
+      }
+    },
+    [props.onViewChange, props.onViewportChange, props.image.id, fitScale],
+  )
+
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-black/60">
       {fitScale !== null && (
@@ -112,7 +170,7 @@ export function ImageStage(props: Props) {
           maxScale={8}
           disabled={!props.interactive}
           doubleClick={{ disabled: true }}
-          onTransform={(ref) => reportViewport(ref, props, containerRef.current)}
+          onTransform={handleTransform}
         >
           <StageContent {...props} />
         </TransformWrapper>
@@ -190,17 +248,17 @@ function StageContent(props: Props) {
               style={{ left: `${compare * 100}%`, background: 'var(--ngio-accent)' }}
             />
           )}
-          {props.liveEnhancedUrl && props.liveRegion && step === 'enhanced' && (
+          {props.liveEnhance?.region && step === 'enhanced' && (
             <img
-              src={props.liveEnhancedUrl}
+              src={props.liveEnhance.url}
               alt=""
               draggable={false}
               className="absolute"
               style={{
-                left: props.liveRegion.x,
-                top: props.liveRegion.y,
-                width: props.liveRegion.width,
-                height: props.liveRegion.height,
+                left: props.liveEnhance.region.x,
+                top: props.liveEnhance.region.y,
+                width: props.liveEnhance.region.width,
+                height: props.liveEnhance.region.height,
                 outline: '2px dashed var(--ngio-accent)',
               }}
             />
@@ -217,7 +275,7 @@ function StageContent(props: Props) {
           )}
           {props.liveResult && props.liveResult.region && (
             <img
-              src={`data:image/png;base64,${props.liveResult.outlines_png_b64}`}
+              src={props.liveResult.outlines_url}
               alt=""
               draggable={false}
               className="absolute"

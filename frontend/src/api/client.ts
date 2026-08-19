@@ -1,4 +1,4 @@
-import type { Entry, FeaturesFile, GameImage, Manifest, RevealPayload, Scene } from './types'
+import type { Cell, Entry, FeaturesFile, GameImage, LiveEnhance, Manifest, RevealPayload, Scene } from './types'
 
 async function json<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
@@ -34,15 +34,14 @@ export const api = {
       body: JSON.stringify({ state }),
     }),
 
-  computeEnhance: async (body: Record<string, unknown>): Promise<string> => {
-    const res = await fetch('/api/compute/enhance', {
+  computeEnhance: (body: Record<string, unknown>) =>
+    fetch('/api/compute/enhance', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    })
-    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
-    return URL.createObjectURL(await res.blob())
-  },
+    }).then((r) => json<LiveEnhance>(r)),
+  liveCells: (url: string) => fetch(url).then((r) => json<Cell[]>(r)),
+  exploreState: () => fetch('/api/tv/explore-state').then((r) => json<Record<string, unknown>>(r)),
   computeSegment: (body: Record<string, unknown>) =>
     fetch('/api/compute/segment', {
       method: 'POST',

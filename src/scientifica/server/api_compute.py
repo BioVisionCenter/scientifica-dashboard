@@ -1,13 +1,11 @@
 """Live re-compute: sync enhance, async cellpose segment job (one at a time)."""
 
 import asyncio
-import base64
-import io as _io
 import json
 import uuid
 
 import numpy as np
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException
 from PIL import Image
 from pydantic import BaseModel, Field
 
@@ -68,20 +66,35 @@ async def compute_enhance(body: EnhanceBody):
         _enhance_channels, rgb, body.method, body.strength, body.stretch
     )
     out = channels.composite(enh_n, enh_m, config.NUCLEI_HEX, config.MEMBRANE_HEX)
-    buf = _io.BytesIO()
-    Image.fromarray(out).save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
+    # live results land in the served assets dir so every screen (operator
+    # AND the mirroring TV) loads the exact same file
+    url = _save_live(f"enhance_{uuid.uuid4().hex[:8]}.png", Image.fromarray(out))
+    return {"url": url, "region": body.region.model_dump() if body.region else None}
+
+
+LIVE_DIR = config.DERIVED_DIR / "_live"
+
+
+def _save_live(name: str, payload) -> str:
+    LIVE_DIR.mkdir(parents=True, exist_ok=True)
+    path = LIVE_DIR / name
+    if isinstance(payload, Image.Image):
+        payload.save(path)
+    else:
+        path.write_text(json.dumps(payload))
+    _prune_live()
+    return f"/assets/_live/{name}"
+
+
+def _prune_live(keep: int = 24) -> None:
+    files = sorted(LIVE_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for stale in files[keep:]:
+        stale.unlink(missing_ok=True)
 
 
 class SegmentBody(EnhanceBody):
     diameter_px: float = Field(gt=4, le=500)
     sensitivity: float = Field(default=50, ge=0, le=100)
-
-
-def _png_b64(img: Image.Image) -> str:
-    buf = _io.BytesIO()
-    img.save(buf, format="PNG")
-    return base64.b64encode(buf.getvalue()).decode()
 
 
 async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
@@ -103,10 +116,9 @@ async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
         cells = await asyncio.to_thread(measure.measure_cells, labels, enh_n, enh_m)
         result = {
             "count": int(labels.max()),
-            "cells": cells,
-            "outlines_png_b64": _png_b64(render.render_outlines(labels)),
-            "labels_rgb_png_b64": _png_b64(render.encode_labels_rgb(labels)),
             "region": body.region.model_dump() if body.region else None,
+            "outlines_url": _save_live(f"{job_id}_outlines.png", render.render_outlines(labels)),
+            "cells_url": _save_live(f"{job_id}_cells.json", cells),
         }
         _jobs[job_id].update(status="done", stage="done", result=result)
         await hub.broadcast("job:done", {"job_id": job_id, "count": result["count"]})

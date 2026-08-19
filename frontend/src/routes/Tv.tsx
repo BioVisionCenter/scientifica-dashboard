@@ -3,12 +3,13 @@ import { motion, AnimatePresence } from 'motion/react'
 import { useWebsocket } from '../api/ws'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
-import type { Manifest, ManifestImage } from '../api/types'
+import type { Manifest } from '../api/types'
 import { copy } from '../copy'
 import { BiText } from '../components/common/BiText'
 import { EventMark } from '../components/common/EventMark'
 import { PoweredBy } from '../components/common/PoweredBy'
 import { IdleShow } from '../components/tv/IdleShow'
+import Explore from './Explore'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { RevealOverlay } from '../components/leaderboard/RevealOverlay'
 import { Podium } from '../components/leaderboard/Podium'
@@ -55,7 +56,7 @@ export default function Tv() {
             className="absolute inset-0"
           >
             {scene === 'idle' && manifest && <IdleShow manifest={manifest} />}
-            {scene === 'explore' && <ExploreScene manifest={manifest} />}
+            {scene === 'explore' && <Explore mirror />}
             {scene === 'leaderboard' && <LeaderboardScene />}
             {scene === 'podium' && <PodiumScene />}
           </motion.div>
@@ -82,51 +83,6 @@ export default function Tv() {
         className="absolute right-4 bottom-4 h-2.5 w-2.5 rounded-full"
         style={{ background: connected ? 'var(--ngio-green)' : 'var(--ngio-magenta)', opacity: 0.7 }}
       />
-    </div>
-  )
-}
-
-function ExploreScene({ manifest }: { manifest: Manifest | null }) {
-  const sync = useAppStore((s) => s.exploreSync)
-  const image: ManifestImage | undefined =
-    manifest?.images.find((i) => i.id === sync?.imageId) ?? manifest?.images[0]
-  if (!image) return null
-  const step = (sync?.step as string) ?? 'enhanced'
-  const overlay = (sync?.overlay as string) ?? 'none'
-  const compare = (sync?.compare as number) ?? 0.5
-
-  const src = step === 'raw' ? image.assets.raw : image.assets.enhanced
-  return (
-    <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between px-10 pt-6 pb-4">
-        <EventMark size={30} label="image analysis, live" />
-        <span className="font-display font-semibold" style={{ fontSize: 30, letterSpacing: '-0.022em' }}>
-          {image.title}
-          {(step === 'segmented' || step === 'measured') && (
-            <span style={{ color: 'var(--ccc-cyan-ink)' }}> — {image.cell_count.toLocaleString()} cells found</span>
-          )}
-        </span>
-      </div>
-      <div className="relative min-h-0 flex-1">
-        <div className="relative h-full w-full overflow-hidden">
-          <img src={src} alt="" className="absolute inset-0 h-full w-full object-contain" />
-          {step === 'enhanced' && (
-            <img
-              src={image.assets.raw}
-              alt=""
-              className="absolute inset-0 h-full w-full object-contain"
-              style={{ clipPath: `inset(0 ${(1 - compare) * 100}% 0 0)` }}
-            />
-          )}
-          {(step === 'segmented' || step === 'measured') && overlay !== 'none' && (
-            <img
-              src={overlay === 'outlines' ? image.assets.outlines : image.assets.mask}
-              alt=""
-              className="absolute inset-0 h-full w-full object-contain"
-            />
-          )}
-        </div>
-      </div>
     </div>
   )
 }

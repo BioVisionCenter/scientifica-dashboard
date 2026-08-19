@@ -4,11 +4,14 @@ import { api } from '../api/client'
 import type {
   Cell,
   ExploreParams,
+  ExploreState,
   FeaturesFile,
+  LiveEnhance,
   LiveResult,
   Manifest,
   ManifestImage,
   PipelineStep,
+  StageView,
 } from '../api/types'
 import { ImageStage, type OverlayMode, type Region, type StageApi } from '../components/viewer/ImageStage'
 import { FeatureScatter } from '../components/scatter/FeatureScatter'
@@ -23,27 +26,61 @@ const STEPS: { key: PipelineStep; label: string; blurb: string }[] = [
 
 const JOB_STAGES = ['enhancing', 'segmenting', 'measuring']
 
-export default function Explore() {
+function paramsFrom(m: Manifest): ExploreParams {
+  return {
+    method: m.defaults.denoise.method,
+    strength: m.defaults.denoise.strength,
+    stretch: m.defaults.stretch,
+    diameter_px: Math.round(m.defaults.diameter_px),
+    sensitivity: m.defaults.sensitivity,
+  }
+}
+
+function defaultState(m: Manifest): ExploreState {
+  return {
+    imageId: m.images[0]?.id ?? '',
+    step: 'raw',
+    overlay: 'outlines',
+    compare: 0.5,
+    xKey: 'area',
+    yKey: 'eccentricity',
+    selectedLabel: null,
+    hoveredLabel: null,
+    params: paramsFrom(m),
+    busy: false,
+    liveEnhance: null,
+    liveResult: null,
+    view: null,
+  }
+}
+
+/** The explore panel. `mirror` renders the identical UI on the TV, driven
+    entirely by the operator's synced state instead of local interaction. */
+export default function Explore({ mirror = false }: { mirror?: boolean }) {
   const jobStage = useAppStore((s) => s.jobStage)
+  const sync = useAppStore((s) => s.exploreSync)
 
   const [manifest, setManifest] = useState<Manifest | null>(null)
+
+  // operator-owned state (unused for rendering in mirror mode)
   const [imageId, setImageId] = useState<string | null>(null)
   const [step, setStep] = useState<PipelineStep>('raw')
   const [overlay, setOverlay] = useState<OverlayMode>('outlines')
   const [compare, setCompare] = useState(0.5)
-  const [features, setFeatures] = useState<FeaturesFile | null>(null)
   const [xKey, setXKey] = useState('area')
   const [yKey, setYKey] = useState('eccentricity')
   const [selectedLabel, setSelectedLabel] = useState<number | null>(null)
   const [hoveredLabel, setHoveredLabel] = useState<number | null>(null)
+  const [params, setParams] = useState<ExploreParams | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [liveEnhance, setLiveEnhance] = useState<LiveEnhance | null>(null)
+  const [liveResult, setLiveResult] = useState<LiveResult | null>(null)
+  const [view, setView] = useState<StageView | null>(null)
   const [sendToTv, setSendToTv] = useState(false)
 
-  const [params, setParams] = useState<ExploreParams | null>(null)
   const [viewport, setViewport] = useState<Region | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [liveEnhancedUrl, setLiveEnhancedUrl] = useState<string | null>(null)
-  const [liveRegion, setLiveRegion] = useState<Region | null>(null)
-  const [liveResult, setLiveResult] = useState<LiveResult | null>(null)
+  const [features, setFeatures] = useState<FeaturesFile | null>(null)
+  const [liveCellsRaw, setLiveCellsRaw] = useState<Cell[] | null>(null)
 
   const stageRef = useRef<StageApi | null>(null)
 
@@ -51,44 +88,71 @@ export default function Explore() {
     api.manifest().then((m) => {
       setManifest(m)
       setImageId(m.images[0]?.id ?? null)
-      setParams({
-        method: m.defaults.denoise.method,
-        strength: m.defaults.denoise.strength,
-        stretch: m.defaults.stretch,
-        diameter_px: Math.round(m.defaults.diameter_px),
-        sensitivity: m.defaults.sensitivity,
-      })
+      setParams(paramsFrom(m))
     })
   }, [])
 
+  // the single resolved state everything renders from
+  const S: ExploreState | null = useMemo(() => {
+    if (!manifest) return null
+    if (mirror) return { ...defaultState(manifest), ...(sync ?? {}) }
+    if (!imageId || !params) return null
+    return {
+      imageId,
+      step,
+      overlay,
+      compare,
+      xKey,
+      yKey,
+      selectedLabel,
+      hoveredLabel,
+      params,
+      busy,
+      liveEnhance,
+      liveResult,
+      view,
+    }
+  }, [
+    manifest, mirror, sync, imageId, step, overlay, compare, xKey, yKey,
+    selectedLabel, hoveredLabel, params, busy, liveEnhance, liveResult, view,
+  ])
+
   const image: ManifestImage | null = useMemo(
-    () => manifest?.images.find((i) => i.id === imageId) ?? null,
-    [manifest, imageId],
+    () => manifest?.images.find((i) => i.id === S?.imageId) ?? null,
+    [manifest, S?.imageId],
   )
 
+  // per-image data (both modes)
   useEffect(() => {
     setFeatures(null)
-    setSelectedLabel(null)
-    setHoveredLabel(null)
-    setLiveEnhancedUrl(null)
-    setLiveResult(null)
-    setLiveRegion(null)
-    setViewport(null)
-    if (image) {
-      api.features(image.features_url).then(setFeatures)
-      if (image.hero) setParams((p) => (p ? { ...p, diameter_px: Math.round(image.diameter_px) } : p))
+    if (image) api.features(image.features_url).then(setFeatures)
+    if (!mirror) {
+      setSelectedLabel(null)
+      setHoveredLabel(null)
+      setLiveEnhance(null)
+      setLiveResult(null)
+      setViewport(null)
+      setView(null)
+      if (image?.hero) setParams((p) => (p ? { ...p, diameter_px: Math.round(image.diameter_px) } : p))
     }
   }, [image?.id])
 
-  // Mirror state to the TV (throttled) when enabled
+  // live cells follow the live result (both modes fetch the same server file)
+  useEffect(() => {
+    setLiveCellsRaw(null)
+    const url = S?.liveResult?.cells_url
+    if (url) api.liveCells(url).then(setLiveCellsRaw).catch(console.error)
+  }, [S?.liveResult?.cells_url])
+
+  // operator: publish the full state to the TV (throttled)
   const syncTimer = useRef<number | null>(null)
   useEffect(() => {
-    if (!sendToTv || !imageId) return
+    if (mirror || !sendToTv || !S) return
     if (syncTimer.current) window.clearTimeout(syncTimer.current)
     syncTimer.current = window.setTimeout(() => {
-      void api.exploreSync({ imageId, step, overlay, compare })
+      void api.exploreSync(S as unknown as Record<string, unknown>)
     }, 120)
-  }, [sendToTv, imageId, step, overlay, compare])
+  }, [mirror, sendToTv, S])
 
   // the toggle owns the TV scene: on -> explore mirror, off -> back to idle
   const toggleSendToTv = () => {
@@ -102,24 +166,26 @@ export default function Explore() {
   sendToTvRef.current = sendToTv
   useEffect(
     () => () => {
-      if (sendToTvRef.current) void api.setScene('idle')
+      if (!mirror && sendToTvRef.current) void api.setScene('idle')
     },
-    [],
+    [mirror],
   )
 
   const cells: Cell[] = features?.cells ?? []
 
   // live results are region-relative: offset into image coordinates
   const liveCells: Cell[] | null = useMemo(() => {
-    if (!liveResult?.region) return null
-    const { x, y } = liveResult.region
-    return liveResult.cells.map((c) => ({
+    const region = S?.liveResult?.region
+    if (!liveCellsRaw || !region) return null
+    return liveCellsRaw.map((c) => ({
       ...c,
-      centroid: [c.centroid[0] + x, c.centroid[1] + y] as [number, number],
-      bbox: [c.bbox[0] + x, c.bbox[1] + y, c.bbox[2] + x, c.bbox[3] + y] as [number, number, number, number],
-      polygon: c.polygon.map((p) => [p[0] + x, p[1] + y] as [number, number]),
+      centroid: [c.centroid[0] + region.x, c.centroid[1] + region.y] as [number, number],
+      bbox: [c.bbox[0] + region.x, c.bbox[1] + region.y, c.bbox[2] + region.x, c.bbox[3] + region.y] as [
+        number, number, number, number,
+      ],
+      polygon: c.polygon.map((p) => [p[0] + region.x, p[1] + region.y] as [number, number]),
     }))
-  }, [liveResult])
+  }, [liveCellsRaw, S?.liveResult?.region])
 
   const scatterCells = liveCells ?? cells
 
@@ -141,18 +207,14 @@ export default function Explore() {
     if (!region) return
     setBusy(true)
     try {
-      const url = await api.computeEnhance({
+      const result = await api.computeEnhance({
         image_id: image.id,
         region,
         method: params.method,
         strength: params.strength,
         stretch: params.stretch,
       })
-      setLiveEnhancedUrl((old) => {
-        if (old) URL.revokeObjectURL(old)
-        return url
-      })
-      setLiveRegion(region)
+      setLiveEnhance(result)
     } finally {
       setBusy(false)
     }
@@ -197,63 +259,58 @@ export default function Explore() {
   const reset = () => {
     if (!manifest || !image) return
     setParams({
-      method: manifest.defaults.denoise.method,
-      strength: manifest.defaults.denoise.strength,
-      stretch: manifest.defaults.stretch,
+      ...paramsFrom(manifest),
       diameter_px: Math.round(image.hero ? image.diameter_px : manifest.defaults.diameter_px),
-      sensitivity: manifest.defaults.sensitivity,
     })
-    setLiveEnhancedUrl((old) => {
-      if (old) URL.revokeObjectURL(old)
-      return null
-    })
+    setLiveEnhance(null)
     setLiveResult(null)
-    setLiveRegion(null)
     setSelectedLabel(null)
     setHoveredLabel(null)
   }
 
   const selectCell = useCallback(
     (label: number | null) => {
+      if (mirror) return
       setSelectedLabel(label)
       if (label !== null) {
         const cell = (liveCells ?? cells).find((c) => c.label === label)
         if (cell) stageRef.current?.zoomToCell(cell)
       }
     },
-    [liveCells, cells],
+    [mirror, liveCells, cells],
   )
 
-  if (!manifest || !image || !params) {
+  if (!manifest || !image || !S) {
     return (
       <div className="flex h-full items-center justify-center" style={{ color: 'var(--ngio-muted)' }}>
-        Loading manifest… (run the pipeline first)
+        {mirror ? 'Waiting for the operator…' : 'Loading manifest… (run the pipeline first)'}
       </div>
     )
   }
 
-  const isMeasured = step === 'measured'
-  const showsSegmentation = step === 'segmented' || step === 'measured'
+  const isMeasured = S.step === 'measured'
+  const showsSegmentation = S.step === 'segmented' || S.step === 'measured'
 
   const viewerCard = (
     <div className="card relative min-h-0 overflow-hidden">
       <ImageStage
         image={image}
-        step={step}
-        overlay={overlay}
-        compare={compare}
+        step={S.step}
+        overlay={S.overlay}
+        compare={S.compare}
         cells={scatterCells}
-        selectedLabel={selectedLabel}
-        hoveredLabel={hoveredLabel}
-        liveResult={liveResult}
-        liveEnhancedUrl={liveEnhancedUrl}
-        liveRegion={liveRegion}
-        interactive
-        apiRef={stageRef}
-        onCellClick={(l) => showsSegmentation && !liveResult && setSelectedLabel(l)}
-        onViewportChange={setViewport}
+        selectedLabel={S.selectedLabel}
+        hoveredLabel={S.hoveredLabel}
+        liveResult={S.liveResult}
+        liveEnhance={S.liveEnhance}
+        interactive={!mirror}
+        apiRef={mirror ? undefined : stageRef}
+        view={mirror ? S.view : undefined}
+        onViewChange={mirror ? undefined : setView}
+        onCellClick={(l) => !mirror && showsSegmentation && !S.liveResult && setSelectedLabel(l)}
+        onViewportChange={mirror ? undefined : setViewport}
       />
-      {step === 'enhanced' && (
+      {S.step === 'enhanced' && (
         <div
           className="absolute bottom-3 left-3 flex w-72 items-center gap-2 rounded-lg px-3 py-2"
           style={{ background: 'rgba(11,17,19,0.75)' }}
@@ -264,7 +321,7 @@ export default function Explore() {
             min={0}
             max={1}
             step={0.01}
-            value={compare}
+            value={S.compare}
             className="w-full"
             onChange={(e) => setCompare(parseFloat(e.target.value))}
           />
@@ -275,7 +332,7 @@ export default function Explore() {
           {(['outlines', 'mask', 'none'] as OverlayMode[]).map((o) => (
             <button
               key={o}
-              className={`btn ${overlay === o ? 'btn-active' : ''}`}
+              className={`btn ${S.overlay === o ? 'btn-active' : ''}`}
               style={{ padding: '5px 10px', fontSize: 12.5 }}
               onClick={() => setOverlay(o)}
             >
@@ -290,18 +347,18 @@ export default function Explore() {
           </span>
         </div>
       )}
-      {busy && showsSegmentation && <JobOverlay stage={jobStage?.stage ?? null} />}
+      {S.busy && showsSegmentation && <JobOverlay stage={jobStage?.stage ?? null} />}
     </div>
   )
 
   const paramCard = (
     <ParamPanel
-      params={params}
+      params={S.params}
       defaults={manifest.defaults}
-      step={step}
-      busy={busy}
+      step={S.step}
+      busy={S.busy}
       busyStage={jobStage?.stage ?? null}
-      liveCount={liveResult?.count ?? null}
+      liveCount={S.liveResult?.count ?? null}
       onChange={setParams}
       onRunEnhance={runEnhance}
       onRunSegment={runSegment}
@@ -323,14 +380,14 @@ export default function Explore() {
         )}
       </div>
       <div className="flex gap-2">
-        <select className="input flex-1" value={xKey} onChange={(e) => setXKey(e.target.value)}>
+        <select className="input flex-1" value={S.xKey} onChange={(e) => setXKey(e.target.value)}>
           {features.features.map((f) => (
             <option key={f.key} value={f.key}>
               x: {f.label}
             </option>
           ))}
         </select>
-        <select className="input flex-1" value={yKey} onChange={(e) => setYKey(e.target.value)}>
+        <select className="input flex-1" value={S.yKey} onChange={(e) => setYKey(e.target.value)}>
           {features.features.map((f) => (
             <option key={f.key} value={f.key}>
               y: {f.label}
@@ -342,25 +399,25 @@ export default function Explore() {
         <FeatureScatter
           cells={scatterCells}
           features={features.features}
-          xKey={xKey}
-          yKey={yKey}
-          selectedLabel={selectedLabel}
+          xKey={S.xKey}
+          yKey={S.yKey}
+          selectedLabel={S.selectedLabel}
           onSelect={selectCell}
-          onHover={setHoveredLabel}
+          onHover={mirror ? undefined : setHoveredLabel}
         />
       </div>
-      {selectedLabel !== null && <SelectedCellInfo cells={scatterCells} label={selectedLabel} />}
+      {S.selectedLabel !== null && <SelectedCellInfo cells={scatterCells} label={S.selectedLabel} />}
     </div>
   )
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
+    <div className={`flex h-full flex-col gap-3 p-4 ${mirror ? 'pointer-events-none select-none' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {manifest.images.map((img) => (
             <button
               key={img.id}
-              className={`btn shrink-0 ${img.id === imageId ? 'btn-active' : ''}`}
+              className={`btn shrink-0 ${img.id === S.imageId ? 'btn-active' : ''}`}
               style={{ padding: '5px 9px', fontSize: 12 }}
               onClick={() => setImageId(img.id)}
             >
@@ -369,16 +426,18 @@ export default function Explore() {
             </button>
           ))}
         </div>
-        <button className={`btn ml-3 shrink-0 ${sendToTv ? 'btn-active' : ''}`} onClick={toggleSendToTv}>
-          {sendToTv ? '● Broadcasting to TV — click to stop' : 'Broadcast to TV'}
-        </button>
+        {!mirror && (
+          <button className={`btn ml-3 shrink-0 ${sendToTv ? 'btn-active' : ''}`} onClick={toggleSendToTv}>
+            {sendToTv ? '● Broadcasting to TV — click to stop' : 'Broadcast to TV'}
+          </button>
+        )}
       </div>
 
       <div className="flex items-stretch gap-2">
         {STEPS.map((s) => (
           <button
             key={s.key}
-            className={`btn flex-1 ${step === s.key ? 'btn-active' : ''}`}
+            className={`btn flex-1 ${S.step === s.key ? 'btn-active' : ''}`}
             style={{ padding: '10px 8px' }}
             onClick={() => setStep(s.key)}
           >

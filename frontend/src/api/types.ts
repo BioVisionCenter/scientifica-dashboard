@@ -92,10 +92,45 @@ export interface ExploreParams {
   sensitivity: number
 }
 
+export interface RegionRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface LiveResult {
   count: number
-  cells: Cell[]
-  outlines_png_b64: string
-  labels_rgb_png_b64: string
-  region: { x: number; y: number; width: number; height: number } | null
+  region: RegionRect | null
+  outlines_url: string
+  cells_url: string
+}
+
+export interface LiveEnhance {
+  url: string
+  region: RegionRect | null
+}
+
+/** Normalized viewer state: image-coord centre + zoom relative to fit. */
+export interface StageView {
+  cx: number
+  cy: number
+  zoomRel: number
+}
+
+/** The full explore UI state, serializable, mirrored operator -> TV. */
+export interface ExploreState {
+  imageId: string
+  step: PipelineStep
+  overlay: 'none' | 'outlines' | 'mask'
+  compare: number
+  xKey: string
+  yKey: string
+  selectedLabel: number | null
+  hoveredLabel: number | null
+  params: ExploreParams
+  busy: boolean
+  liveEnhance: LiveEnhance | null
+  liveResult: LiveResult | null
+  view: StageView | null
 }

@@ -44,12 +44,23 @@ async def set_scene(body: SceneBody):
 
 
 class ExploreState(BaseModel):
-    """Free-form explore UI state mirrored from admin/explore to the TV."""
+    """Free-form explore UI state mirrored from the operator to the TV."""
 
     state: dict
 
 
+_explore_state: dict = {}
+
+
 @router.post("/tv/explore-sync")
 async def explore_sync(body: ExploreState):
+    _explore_state.clear()
+    _explore_state.update(body.state)
     await hub.broadcast("explore:sync", body.state)
     return {"ok": True}
+
+
+@router.get("/tv/explore-state")
+def get_explore_state():
+    """Resync path for a TV that (re)connects mid-broadcast."""
+    return _explore_state

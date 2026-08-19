@@ -14,9 +14,14 @@ export function useWebsocket(role: 'tv' | 'admin') {
 
     const resync = async () => {
       try {
-        const [scene, entries] = await Promise.all([api.getScene(), api.entries(20)])
+        const [scene, entries, exploreState] = await Promise.all([
+          api.getScene(),
+          api.entries(20),
+          api.exploreState(),
+        ])
         store().setScene(scene.scene, scene.payload)
         store().setEntries(entries)
+        if (exploreState && Object.keys(exploreState).length) store().setExploreSync(exploreState)
       } catch {
         /* backend not up yet; the next reconnect retries */
       }

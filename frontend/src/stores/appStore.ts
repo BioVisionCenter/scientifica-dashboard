@@ -1,13 +1,7 @@
 import { create } from 'zustand'
-import type { Entry, RevealPayload, Scene } from '../api/types'
+import type { Entry, ExploreState, RevealPayload, Scene } from '../api/types'
 
-interface ExploreSyncState {
-  imageId: string
-  step: string
-  overlay: string
-  compare: number
-  [key: string]: unknown
-}
+type ExploreSyncState = Partial<ExploreState>
 
 interface AppState {
   connected: boolean
