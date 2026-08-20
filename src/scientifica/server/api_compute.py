@@ -75,7 +75,7 @@ def _save_live(name: str, payload) -> str:
     return f"/assets/_live/{name}"
 
 
-def _prune_live(keep: int = 24) -> None:
+def _prune_live(keep: int = 32) -> None:
     files = sorted(LIVE_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
     for stale in files[keep:]:
         stale.unlink(missing_ok=True)
@@ -107,6 +107,7 @@ async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
             "count": int(labels.max()),
             "region": body.region.model_dump() if body.region else None,
             "outlines_url": _save_live(f"{job_id}_outlines.png", render.render_outlines(labels)),
+            "mask_url": _save_live(f"{job_id}_mask.png", render.render_mask(labels)),
             "cells_url": _save_live(f"{job_id}_cells.json", cells),
         }
         _jobs[job_id].update(status="done", stage="done", result=result)

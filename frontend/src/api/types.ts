@@ -102,6 +102,7 @@ export interface LiveResult {
   count: number
   region: RegionRect | null
   outlines_url: string
+  mask_url: string
   cells_url: string
 }
 

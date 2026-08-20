@@ -254,10 +254,7 @@ function StageContent(props: Props) {
             />
           )}
           {props.liveResult && props.liveResult.region && (
-            <img
-              src={props.liveResult.outlines_url}
-              alt=""
-              draggable={false}
+            <div
               className="absolute"
               style={{
                 left: props.liveResult.region.x,
@@ -266,7 +263,17 @@ function StageContent(props: Props) {
                 height: props.liveResult.region.height,
                 outline: '2px dashed var(--ngio-accent)',
               }}
-            />
+            >
+              {/* the live layer follows the same overlay toggle as precomputed */}
+              {overlay !== 'none' && (
+                <img
+                  src={overlay === 'outlines' ? props.liveResult.outlines_url : props.liveResult.mask_url}
+                  alt=""
+                  draggable={false}
+                  className="absolute inset-0 h-full w-full"
+                />
+              )}
+            </div>
           )}
           {(selected || hovered) && (
             <svg
