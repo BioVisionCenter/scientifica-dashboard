@@ -39,14 +39,21 @@ class NewEntry(BaseModel):
     game_image_id: str
     guess: int = Field(ge=0)
     time_seconds: float = Field(gt=0)
+    # for ad-hoc rounds on images outside the generated patches
+    true_count: int | None = Field(default=None, gt=0)
 
 
 @router.post("/entries")
 async def create_entry(body: NewEntry):
-    images = {img["id"]: img for img in _game_images()}
-    if body.game_image_id not in images:
-        raise HTTPException(404, "unknown game image")
-    true_count = images[body.game_image_id]["true_count"]
+    if body.game_image_id == "custom":
+        if body.true_count is None:
+            raise HTTPException(422, "custom rounds need a true_count")
+        true_count = body.true_count
+    else:
+        images = {img["id"]: img for img in _game_images()}
+        if body.game_image_id not in images:
+            raise HTTPException(404, "unknown game image")
+        true_count = images[body.game_image_id]["true_count"]
     score = scoring.compute_score(body.guess, true_count, body.time_seconds)
     entry = db.add_entry(body.name.strip(), body.game_image_id, body.guess, body.time_seconds, score)
     rank, total = db.rank_of(entry["id"])

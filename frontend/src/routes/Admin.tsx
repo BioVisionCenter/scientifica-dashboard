@@ -124,6 +124,7 @@ function GameTab() {
 
   const [images, setImages] = useState<GameImage[]>([])
   const [imageId, setImageId] = useState('')
+  const [customCount, setCustomCount] = useState('')
   const [name, setName] = useState('')
   const [guess, setGuess] = useState('')
   const [seconds, setSeconds] = useState(0)
@@ -180,8 +181,11 @@ function GameTab() {
   }
   const stop = () => setRunning(false)
 
+  const isCustom = imageId === 'custom'
+
   const submit = async () => {
     if (!name.trim() || !guess || seconds <= 0) return
+    if (isCustom && !(parseInt(customCount, 10) > 0)) return
     const isDuplicate = entries.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())
     if (isDuplicate && !dupWarning) {
       setDupWarning(true)
@@ -193,6 +197,7 @@ function GameTab() {
       game_image_id: imageId,
       guess: parseInt(guess, 10),
       time_seconds: Math.round(seconds * 10) / 10,
+      ...(isCustom ? { true_count: parseInt(customCount, 10) } : {}),
     })
     setLastEntryId(res.entry.id)
     setLastResult(
@@ -210,7 +215,8 @@ function GameTab() {
   }
 
   const selectedImage = images.find((i) => i.id === imageId)
-  const patchChip = (id: string, boss: boolean) => (boss ? 'BOSS' : `#${id.replace('patch_', '')}`)
+  const patchChip = (id: string, boss: boolean) =>
+    id === 'custom' ? '✎ custom' : boss ? 'BOSS' : `#${id.replace('patch_', '')}`
 
   return (
     <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
@@ -224,7 +230,18 @@ function GameTab() {
                   {img.id} {img.boss ? '— BOSS ROUND' : ''} ({img.source_roi})
                 </option>
               ))}
+              <option value="custom">Custom… (type the true count yourself)</option>
             </select>
+            {isCustom && (
+              <input
+                className="input w-40 font-mono"
+                type="number"
+                min={1}
+                placeholder="true count"
+                value={customCount}
+                onChange={(e) => setCustomCount(e.target.value)}
+              />
+            )}
             <input
               className="input flex-1"
               placeholder="Participant name"
@@ -273,7 +290,7 @@ function GameTab() {
             <button
               className="btn btn-primary self-end"
               style={{ padding: '13px 22px' }}
-              disabled={running || !name.trim() || !guess || seconds <= 0}
+              disabled={running || !name.trim() || !guess || seconds <= 0 || (isCustom && !(parseInt(customCount, 10) > 0))}
               onClick={submit}
             >
               Submit

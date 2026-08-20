@@ -13,7 +13,13 @@ export const api = {
   gameImages: () => fetch('/api/game/images').then((r) => json<GameImage[]>(r)),
   entries: (limit?: number) =>
     fetch(`/api/game/entries${limit ? `?limit=${limit}` : ''}`).then((r) => json<Entry[]>(r)),
-  addEntry: (body: { name: string; game_image_id: string; guess: number; time_seconds: number }) =>
+  addEntry: (body: {
+    name: string
+    game_image_id: string
+    guess: number
+    time_seconds: number
+    true_count?: number
+  }) =>
     fetch('/api/game/entries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
