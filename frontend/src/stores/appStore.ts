@@ -46,7 +46,12 @@ export const useAppStore = create<AppState>((set) => ({
   setTheme: (theme) => set({ theme }),
   setEntries: (entries) => set({ entries }),
   setReveal: (reveal) => set({ reveal }),
-  setExploreSync: (exploreSync) => set({ exploreSync }),
+  // identical payloads are dropped so redundant broadcasts don't re-render
+  // every mirror subscriber
+  setExploreSync: (exploreSync) =>
+    set((s) =>
+      JSON.stringify(s.exploreSync) === JSON.stringify(exploreSync) ? {} : { exploreSync },
+    ),
   setJobStage: (jobStage) => set({ jobStage }),
 }))
 

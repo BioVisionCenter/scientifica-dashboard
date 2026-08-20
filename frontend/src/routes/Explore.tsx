@@ -51,7 +51,9 @@ function defaultState(m: Manifest): ExploreState {
     entirely by the operator's synced state instead of local interaction. */
 export default function Explore({ mirror = false }: { mirror?: boolean }) {
   const jobStage = useAppStore((s) => s.jobStage)
-  const sync = useAppStore((s) => s.exploreSync)
+  // the operator must NOT depend on the sync echo of its own publishes —
+  // that dependency once caused an infinite publish/re-render loop
+  const sync = useAppStore((s) => (mirror ? s.exploreSync : null))
 
   const [manifest, setManifest] = useState<Manifest | null>(null)
 
@@ -134,12 +136,17 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
 
   // operator: ALWAYS publish the full state (throttled), independent of the
   // Broadcast toggle — so the TV's explore scene is a live mirror no matter
-  // how it was reached (Broadcast button or the scene controls).
+  // how it was reached (Broadcast button or the scene controls). Identical
+  // states are never re-sent (loop/echo protection).
   const syncTimer = useRef<number | null>(null)
+  const lastSent = useRef<string>('')
   useEffect(() => {
     if (mirror || !S) return
+    const serialized = JSON.stringify(S)
+    if (serialized === lastSent.current) return
     if (syncTimer.current) window.clearTimeout(syncTimer.current)
     syncTimer.current = window.setTimeout(() => {
+      lastSent.current = serialized
       void api.exploreSync(S as unknown as Record<string, unknown>)
     }, 120)
   }, [mirror, S])
