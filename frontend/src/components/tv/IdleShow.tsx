@@ -7,7 +7,7 @@ import { biLine, copy } from '../../copy'
 import { BiText } from '../common/BiText'
 import { EventMark } from '../common/EventMark'
 
-type SlideType = 'beauty' | 'segment' | 'data' | 'about' | 'game' | 'cta'
+type SlideType = 'segment' | 'data' | 'about' | 'game' | 'cta'
 
 interface Slide {
   key: string
@@ -17,12 +17,11 @@ interface Slide {
 }
 
 const DURATIONS: Record<SlideType, number> = {
-  beauty: 8000,
-  segment: 11000,
-  data: 12000,
-  about: 12000,
-  game: 10000,
-  cta: 8000,
+  segment: 9000,
+  data: 8000,
+  about: 8000,
+  game: 7000,
+  cta: 6000,
 }
 
 // Ken-Burns presets, cycled per slide
@@ -33,20 +32,18 @@ const KEN_BURNS = [
   { scale: [1.28, 1.16], x: [-20, 30], y: [20, -10] },
 ]
 
-// One full loop tells the whole story: pretty data, AI counting, then who we
-// are, what the data is, how to play, and the call to action.
+// Two alternating ~30s half-cycles: AI counting, one info slide (data /
+// about-us alternates), how to play, call to action.
 const ROTATION: SlideType[] = [
-  'beauty', 'segment', 'data',
-  'beauty', 'segment', 'about',
-  'beauty', 'segment', 'game',
-  'cta',
+  'segment', 'data', 'game', 'cta',
+  'segment', 'about', 'game', 'cta',
 ]
 
 function buildSlides(manifest: Manifest): Slide[] {
   const hero = manifest.images.find((i) => i.hero) ?? manifest.images[0]
   let cursor = 0
   return ROTATION.map((type, i) => {
-    const usesImage = type === 'beauty' || type === 'segment'
+    const usesImage = type === 'segment'
     const image = usesImage ? manifest.images[cursor++ % manifest.images.length] : hero
     return { key: `${i}-${type}-${image.id}`, type, image, duration: DURATIONS[type] }
   })
@@ -93,8 +90,7 @@ export function IdleShow({ manifest }: { manifest: Manifest }) {
           exit={{ opacity: 0 }}
           transition={{ duration: 1.2 }}
         >
-          {slide.type === 'beauty' && <BeautySlide slide={slide} kb={index % 4} />}
-          {slide.type === 'segment' && <SegmentSlide slide={slide} kb={index % 4} />}
+          {slide.type === 'segment' && <SegmentSlide slide={slide} />}
           {slide.type === 'data' && (
             <InfoSlide slide={slide} kb={index % 4} content={copy.aboutData} />
           )}
@@ -137,25 +133,13 @@ function CaptionBar({ children }: { children: React.ReactNode }) {
   )
 }
 
-function BeautySlide({ slide, kb }: { slide: Slide; kb: number }) {
-  return (
-    <>
-      <KenBurnsImg src={slide.image.assets.enhanced} kb={kb} duration={slide.duration} />
-      <CaptionBar>
-        <BiText text={copy.idle.beautyCaption} size={26} align="left" />
-        <span className="eyebrow" style={{ fontSize: 14 }}>{slide.image.title}</span>
-      </CaptionBar>
-    </>
-  )
-}
-
-function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
+function SegmentSlide({ slide }: { slide: Slide }) {
   const [count, setCount] = useState(0)
   const lang = useAppStore((s) => s.lang)
   useEffect(() => {
     const counter = animate(0, slide.image.cell_count, {
-      delay: 2,
-      duration: 2.5,
+      delay: 1.5,
+      duration: 2,
       ease: [0.2, 0, 0.2, 1],
       onUpdate: (v) => setCount(Math.round(v)),
     })
@@ -164,15 +148,28 @@ function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
 
   return (
     <>
-      <KenBurnsImg src={slide.image.assets.enhanced} kb={kb} duration={slide.duration} />
-      <motion.img
-        src={slide.image.assets.outlines}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2, duration: 1.5 }}
-      />
+      {/* base image and outlines share ONE Ken-Burns transform so the
+          segmentation stays registered on the cells throughout the pan */}
+      <motion.div
+        className="absolute inset-0"
+        initial={{ scale: 1.05, x: 0, y: 0 }}
+        animate={{ scale: 1.12, x: -14, y: 10 }}
+        transition={{ duration: slide.duration / 1000 + 2, ease: 'linear' }}
+      >
+        <img
+          src={slide.image.assets.enhanced}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+        <motion.img
+          src={slide.image.assets.outlines}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5, duration: 1.2 }}
+        />
+      </motion.div>
       <div className="on-image absolute top-10 right-14 flex flex-col items-end">
         <span
           className="font-mono font-medium"

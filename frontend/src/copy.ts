@@ -35,10 +35,6 @@ export const copy = {
       de: `Aktueller Champion: ${name}`,
       en: `Current champion: ${name}`,
     }),
-    beautyCaption: {
-      de: 'Echte Zellen unter dem Mikroskop — Zellkerne in Cyan, Membranen in Magenta',
-      en: 'Real cells under the microscope — nuclei in cyan, membranes in magenta',
-    },
     segTeaser: (n: number): Bi => ({
       de: `Die KI «cellpose» fand ${n.toLocaleString('de-CH')} Zellen — in Sekunden`,
       en: `the AI "cellpose" found ${n.toLocaleString('en-US')} cells — in seconds`,
