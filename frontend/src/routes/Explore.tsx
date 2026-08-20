@@ -6,7 +6,6 @@ import type {
   ExploreParams,
   ExploreState,
   FeaturesFile,
-  LiveEnhance,
   LiveResult,
   Manifest,
   ManifestImage,
@@ -19,18 +18,14 @@ import { ParamPanel } from '../components/params/ParamPanel'
 
 const STEPS: { key: PipelineStep; label: string; blurb: string }[] = [
   { key: 'raw', label: '1 · Raw', blurb: 'Straight from the microscope' },
-  { key: 'enhanced', label: '2 · Enhance', blurb: 'Remove noise, stretch contrast' },
-  { key: 'segmented', label: '3 · Segment', blurb: 'AI finds every cell (cellpose)' },
-  { key: 'measured', label: '4 · Measure', blurb: 'Numbers for every single cell' },
+  { key: 'segmented', label: '2 · Segment', blurb: 'AI finds every cell (cellpose)' },
+  { key: 'measured', label: '3 · Measure', blurb: 'Numbers for every single cell' },
 ]
 
 const JOB_STAGES = ['enhancing', 'segmenting', 'measuring']
 
 function paramsFrom(m: Manifest): ExploreParams {
   return {
-    method: m.defaults.denoise.method,
-    strength: m.defaults.denoise.strength,
-    stretch: m.defaults.stretch,
     diameter_px: Math.round(m.defaults.diameter_px),
     sensitivity: m.defaults.sensitivity,
   }
@@ -41,14 +36,12 @@ function defaultState(m: Manifest): ExploreState {
     imageId: m.images[0]?.id ?? '',
     step: 'raw',
     overlay: 'outlines',
-    compare: 0.5,
     xKey: 'area',
     yKey: 'eccentricity',
     selectedLabel: null,
     hoveredLabel: null,
     params: paramsFrom(m),
     busy: false,
-    liveEnhance: null,
     liveResult: null,
     view: null,
   }
@@ -66,14 +59,12 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
   const [imageId, setImageId] = useState<string | null>(null)
   const [step, setStep] = useState<PipelineStep>('raw')
   const [overlay, setOverlay] = useState<OverlayMode>('outlines')
-  const [compare, setCompare] = useState(0.5)
   const [xKey, setXKey] = useState('area')
   const [yKey, setYKey] = useState('eccentricity')
   const [selectedLabel, setSelectedLabel] = useState<number | null>(null)
   const [hoveredLabel, setHoveredLabel] = useState<number | null>(null)
   const [params, setParams] = useState<ExploreParams | null>(null)
   const [busy, setBusy] = useState(false)
-  const [liveEnhance, setLiveEnhance] = useState<LiveEnhance | null>(null)
   const [liveResult, setLiveResult] = useState<LiveResult | null>(null)
   const [view, setView] = useState<StageView | null>(null)
   const [sendToTv, setSendToTv] = useState(false)
@@ -101,20 +92,18 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       imageId,
       step,
       overlay,
-      compare,
       xKey,
       yKey,
       selectedLabel,
       hoveredLabel,
       params,
       busy,
-      liveEnhance,
       liveResult,
       view,
     }
   }, [
-    manifest, mirror, sync, imageId, step, overlay, compare, xKey, yKey,
-    selectedLabel, hoveredLabel, params, busy, liveEnhance, liveResult, view,
+    manifest, mirror, sync, imageId, step, overlay, xKey, yKey,
+    selectedLabel, hoveredLabel, params, busy, liveResult, view,
   ])
 
   const image: ManifestImage | null = useMemo(
@@ -129,7 +118,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     if (!mirror) {
       setSelectedLabel(null)
       setHoveredLabel(null)
-      setLiveEnhance(null)
       setLiveResult(null)
       setViewport(null)
       setView(null)
@@ -201,25 +189,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     return { x, y, width: w, height: h }
   }, [viewport, image])
 
-  const runEnhance = async () => {
-    if (!image || !params) return
-    const region = cappedRegion()
-    if (!region) return
-    setBusy(true)
-    try {
-      const result = await api.computeEnhance({
-        image_id: image.id,
-        region,
-        method: params.method,
-        strength: params.strength,
-        stretch: params.stretch,
-      })
-      setLiveEnhance(result)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const runSegment = async () => {
     if (!image || !params) return
     const region = cappedRegion()
@@ -229,9 +198,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       const { job_id } = await api.computeSegment({
         image_id: image.id,
         region,
-        method: params.method,
-        strength: params.strength,
-        stretch: params.stretch,
         diameter_px: params.diameter_px,
         sensitivity: params.sensitivity,
       })
@@ -262,7 +228,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       ...paramsFrom(manifest),
       diameter_px: Math.round(image.hero ? image.diameter_px : manifest.defaults.diameter_px),
     })
-    setLiveEnhance(null)
     setLiveResult(null)
     setSelectedLabel(null)
     setHoveredLabel(null)
@@ -297,12 +262,10 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
         image={image}
         step={S.step}
         overlay={S.overlay}
-        compare={S.compare}
         cells={scatterCells}
         selectedLabel={S.selectedLabel}
         hoveredLabel={S.hoveredLabel}
         liveResult={S.liveResult}
-        liveEnhance={S.liveEnhance}
         interactive={!mirror}
         apiRef={mirror ? undefined : stageRef}
         view={mirror ? S.view : undefined}
@@ -310,23 +273,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
         onCellClick={(l) => !mirror && showsSegmentation && !S.liveResult && setSelectedLabel(l)}
         onViewportChange={mirror ? undefined : setViewport}
       />
-      {S.step === 'enhanced' && (
-        <div
-          className="absolute bottom-3 left-3 flex w-72 items-center gap-2 rounded-lg px-3 py-2"
-          style={{ background: 'rgba(11,17,19,0.75)' }}
-        >
-          <span className="eyebrow shrink-0">before / after</span>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={S.compare}
-            className="w-full"
-            onChange={(e) => setCompare(parseFloat(e.target.value))}
-          />
-        </div>
-      )}
       {showsSegmentation && (
         <div className="absolute top-3 left-3 flex gap-1.5">
           {(['outlines', 'mask', 'none'] as OverlayMode[]).map((o) => (
@@ -341,7 +287,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
           ))}
           <span
             className="self-center rounded-md px-2.5 py-1 font-mono text-[13px]"
-            style={{ background: 'rgba(11,17,19,0.75)', color: 'var(--ngio-accent)' }}
+            style={{ background: 'var(--ccc-scrim)', color: 'var(--ccc-cyan-bright)' }}
           >
             {image.cell_count.toLocaleString()} cells
           </span>
@@ -360,7 +306,6 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       busyStage={jobStage?.stage ?? null}
       liveCount={S.liveResult?.count ?? null}
       onChange={setParams}
-      onRunEnhance={runEnhance}
       onRunSegment={runSegment}
       onReset={reset}
     />
@@ -470,8 +415,8 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
 function JobOverlay({ stage }: { stage: string | null }) {
   const activeIdx = stage ? JOB_STAGES.indexOf(stage) : -1
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: 'rgba(11,17,19,0.45)' }}>
-      <div className="card flex flex-col items-center gap-3 px-8 py-6" style={{ background: 'rgba(11,17,19,0.9)' }}>
+    <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: 'var(--ccc-scrim-weak)' }}>
+      <div className="card flex flex-col items-center gap-3 px-8 py-6">
         <div
           className="h-7 w-7 animate-spin rounded-full border-2"
           style={{ borderColor: 'var(--ccc-cyan)', borderTopColor: 'transparent' }}

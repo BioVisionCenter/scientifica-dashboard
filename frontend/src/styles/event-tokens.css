@@ -2,27 +2,72 @@
    Cell Count Championship — event identity tokens
 
    Derived from the data itself: nuclei render cyan, membranes magenta in
-   the booth's fluorescence composites. Raw #00FFFF / #FF00FF fail as UI
-   tones, so these are desaturated/lightness-tuned for the pinned dark
-   theme. The --ngio-accent* family is re-pointed here so every existing
-   component recolors without churn; surfaces/ink/lines stay ngio.
+   the booth's fluorescence composites. Light values live on :root; dark on
+   :root[data-ngio-theme="dark"] (0-2-0 — matches the specificity of the
+   prefers-color-scheme block in colors.css and wins by source order, and
+   main.tsx always sets the attribute explicitly). The --ngio-accent*
+   family is re-pointed in both themes so existing components recolor.
 
    Must be imported AFTER colors.css.
    ═══════════════════════════════════════════════════════════════════════ */
 
-[data-ngio-theme="dark"] {
-  /* primary accent — nuclei cyan */
-  --ccc-cyan: #3fd0e4;        /* fills: primary buttons, dots, bars, outlines */
-  --ccc-cyan-ink: #7ee2f0;    /* text: counts, scores, links */
-  --ccc-cyan-soft: #0d3038;   /* soft backgrounds: active buttons, score bars */
-  --ccc-on-cyan: #04191d;     /* text on cyan fills */
+:root {
+  /* ── LIGHT ── accents tuned for #f9fafa / #ffffff surfaces */
+  --ccc-cyan: #0a9bb4;        /* fills: primary buttons, dots, bars, outlines */
+  --ccc-cyan-ink: #0f6b7a;    /* text: ~6:1 on white */
+  --ccc-cyan-soft: #ddf1f6;
+  --ccc-on-cyan: #ffffff;
 
-  /* secondary accent — membrane magenta */
-  --ccc-magenta: #e878d2;     /* fills: hover outline, live badge, CTA glow, confetti */
-  --ccc-magenta-ink: #f2a4e2; /* text */
+  --ccc-magenta: #d84fbe;
+  --ccc-magenta-ink: #a1258c; /* text: ~6.6:1 on white */
+  --ccc-magenta-soft: #fbe7f6;
+
+  /* medals: raw gold/silver/bronze fail on white */
+  --ccc-gold: #a07d00;
+  --ccc-silver: #667377;
+  --ccc-bronze: #96541e;
+
+  /* ── THEME-INVARIANT over-image tokens ──
+     the microscopy images are dark in both themes, so anything layered on
+     them (caption bars, chips, dim veils) stays dark with light text */
+  --ccc-scrim: rgba(11, 17, 19, 0.75);
+  --ccc-scrim-strong: rgba(11, 17, 19, 0.85);
+  --ccc-scrim-weak: rgba(11, 17, 19, 0.45);
+  --ccc-stage: #0d1315; /* viewer letterbox */
+  --ccc-on-scrim: #e6edee;
+  --ccc-on-scrim-muted: #b6c2c4;
+  --ccc-cyan-bright: #7ee2f0;    /* accent TEXT over dark images */
+  --ccc-magenta-bright: #f2a4e2;
+
+  /* themed veil: full-screen backdrop over UI surfaces (reveal) */
+  --ccc-veil: rgba(16, 22, 25, 0.55);
+
+  /* re-point the ngio accent family (light) */
+  --ngio-accent: var(--ccc-cyan);
+  --ngio-accent-ink: var(--ccc-cyan-ink);
+  --ngio-accent-soft: var(--ccc-cyan-soft);
+  --ngio-accent-2: var(--ccc-magenta);
+  --ngio-accent-2-ink: var(--ccc-magenta-ink);
+  --ngio-on-accent: var(--ccc-on-cyan);
+}
+
+:root[data-ngio-theme="dark"] {
+  --ccc-cyan: #3fd0e4;
+  --ccc-cyan-ink: #7ee2f0;
+  --ccc-cyan-soft: #0d3038;
+  --ccc-on-cyan: #04191d;
+
+  --ccc-magenta: #e878d2;
+  --ccc-magenta-ink: #f2a4e2;
   --ccc-magenta-soft: #331229;
 
-  /* re-point the ngio accent family so existing components recolor */
+  --ccc-gold: #ffd700;
+  --ccc-silver: #c0c0c0;
+  --ccc-bronze: #cd7f32;
+
+  --ccc-veil: rgba(11, 17, 19, 0.88);
+
+  /* re-point again at 0-2-0 so the colors.css media block can't win */
   --ngio-accent: var(--ccc-cyan);
   --ngio-accent-ink: var(--ccc-cyan-ink);
   --ngio-accent-soft: var(--ccc-cyan-soft);

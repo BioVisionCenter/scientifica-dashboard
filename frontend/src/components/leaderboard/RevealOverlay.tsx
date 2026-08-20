@@ -37,7 +37,7 @@ export function RevealOverlay({ reveal, onDone }: { reveal: RevealPayload | null
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="absolute inset-0 z-50 flex items-center justify-center"
-          style={{ background: 'rgba(11, 17, 19, 0.88)' }}
+          style={{ background: 'var(--ccc-veil)' }}
         >
           {isTop1 && <ConfettiBurst />}
           <motion.div
@@ -77,7 +77,7 @@ export function RevealOverlay({ reveal, onDone }: { reveal: RevealPayload | null
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 2.4, type: 'spring', stiffness: 260, damping: 18 }}
               className="mt-5"
-              style={{ color: isTop1 ? '#ffd700' : 'var(--ngio-ink)' }}
+              style={{ color: isTop1 ? 'var(--ccc-gold)' : 'var(--ngio-ink)' }}
             >
               <BiText
                 text={copy.reveal.rank(reveal.rank, reveal.total)}

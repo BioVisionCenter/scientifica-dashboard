@@ -1,4 +1,4 @@
-import type { Cell, Entry, FeaturesFile, GameImage, LiveEnhance, Manifest, RevealPayload, Scene } from './types'
+import type { Cell, Entry, FeaturesFile, GameImage, Manifest, RevealPayload, Scene, ThemeMode } from './types'
 import type { TvLang } from '../copy'
 
 async function json<T>(res: Response): Promise<T> {
@@ -23,8 +23,14 @@ export const api = {
 
   getScene: () =>
     fetch('/api/tv/scene').then((r) =>
-      json<{ scene: Scene; payload: Record<string, unknown>; lang?: TvLang }>(r),
+      json<{ scene: Scene; payload: Record<string, unknown>; lang?: TvLang; theme?: ThemeMode }>(r),
     ),
+  setTheme: (theme: ThemeMode) =>
+    fetch('/api/tv/theme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme }),
+    }).then((r) => json(r)),
   setLang: (lang: TvLang) =>
     fetch('/api/tv/lang', {
       method: 'POST',
@@ -44,12 +50,6 @@ export const api = {
       body: JSON.stringify({ state }),
     }),
 
-  computeEnhance: (body: Record<string, unknown>) =>
-    fetch('/api/compute/enhance', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    }).then((r) => json<LiveEnhance>(r)),
   liveCells: (url: string) => fetch(url).then((r) => json<Cell[]>(r)),
   exploreState: () => fetch('/api/tv/explore-state').then((r) => json<Record<string, unknown>>(r)),
   computeSegment: (body: Record<string, unknown>) =>

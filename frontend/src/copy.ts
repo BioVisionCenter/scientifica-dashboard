@@ -39,14 +39,51 @@ export const copy = {
       de: 'Echte Zellen unter dem Mikroskop — Zellkerne in Cyan, Membranen in Magenta',
       en: 'Real cells under the microscope — nuclei in cyan, membranes in magenta',
     },
-    enhanceTeaser: {
-      de: 'Rohbild → verbessert: Rauschen entfernt, Kontrast verstärkt',
-      en: 'raw → enhanced: denoised, contrast-stretched',
-    },
     segTeaser: (n: number): Bi => ({
       de: `Die KI «cellpose» fand ${n.toLocaleString('de-CH')} Zellen — in Sekunden`,
       en: `the AI "cellpose" found ${n.toLocaleString('en-US')} cells — in seconds`,
     }),
+  },
+
+  aboutData: {
+    kicker: { de: 'Über die Daten', en: 'About the data' },
+    headline: { de: 'Stammzellen auf dem Weg zum Herzmuskel', en: 'Stem cells becoming heart muscle' },
+    body1: {
+      de: 'Menschliche induzierte pluripotente Stammzellen differenzieren zu Herzmuskelzellen (Kardiomyozyten).',
+      en: 'Human induced pluripotent stem cells differentiating into heart cells (cardiomyocytes).',
+    },
+    body2: {
+      de: 'Fluoreszenzmikroskopie: Zellkerne in Cyan, Zellmembranen in Magenta.',
+      en: 'Fluorescence microscopy: nuclei in cyan, cell membranes in magenta.',
+    },
+    credit: {
+      de: 'Daten: Liberali-Labor · «Fractal» (Lüthi et al.) · BioVisionCenter, Universität Zürich',
+      en: 'Data: Liberali lab · "Fractal" (Lüthi et al.) · BioVisionCenter, University of Zurich',
+    },
+  },
+
+  aboutUs: {
+    kicker: { de: 'Über uns', en: 'About us' },
+    headline: { de: 'BioVisionCenter · Universität Zürich', en: 'BioVisionCenter · University of Zurich' },
+    body1: {
+      de: 'Das erste vollständig computergestützte akademische Zentrum der Schweiz für Forschung und Entwicklung in der Bildanalyse.',
+      en: 'The first fully computational academic center dedicated to bioimage analysis R&D in Switzerland.',
+    },
+    body2: {
+      de: 'Wir befähigen Biolog:innen, ihre Mikroskopie-Daten mit modernsten Machine-Vision-Methoden zu analysieren.',
+      en: 'We empower biologists to analyze their bioimage datasets with state-of-the-art machine vision methods.',
+    },
+    credit: {
+      de: 'Zuhause der Open-Source-Plattform Fractal — in Partnerschaft mit dem FMI',
+      en: 'Home of the open-source Fractal platform — in partnership with FMI',
+    },
+  },
+
+  howItWorks: {
+    kicker: { de: 'So funktioniert das Spiel', en: 'How the game works' },
+    step1: { de: 'Zähle die Zellen auf dem gedruckten Bild', en: 'Count the cells on the printed image' },
+    step2: { de: 'Wir stoppen die Zeit', en: 'We time you' },
+    step3: { de: 'Punkte = Genauigkeit × Tempo', en: 'Score = accuracy × speed' },
   },
 
   leaderboard: {

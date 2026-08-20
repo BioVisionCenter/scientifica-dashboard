@@ -10,10 +10,11 @@ from scientifica.server.ws import hub
 
 router = APIRouter(prefix="/api")
 
-_tv_state = {"scene": "idle", "payload": {}, "lang": "bi"}
+_tv_state = {"scene": "idle", "payload": {}, "lang": "bi", "theme": "dark"}
 
 SCENES = ("idle", "explore", "leaderboard", "podium")
 LANGS = ("de", "en", "bi")
+THEMES = ("light", "dark")
 
 
 @router.get("/manifest")
@@ -54,6 +55,19 @@ async def set_lang(body: LangBody):
         raise HTTPException(422, f"lang must be one of {LANGS}")
     _tv_state["lang"] = body.lang
     await hub.broadcast("lang:set", {"lang": body.lang})
+    return _tv_state
+
+
+class ThemeBody(BaseModel):
+    theme: str
+
+
+@router.post("/tv/theme")
+async def set_theme(body: ThemeBody):
+    if body.theme not in THEMES:
+        raise HTTPException(422, f"theme must be one of {THEMES}")
+    _tv_state["theme"] = body.theme
+    await hub.broadcast("theme:set", {"theme": body.theme})
     return _tv_state
 
 

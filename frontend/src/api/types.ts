@@ -82,12 +82,11 @@ export interface RevealPayload {
 
 export type Scene = 'idle' | 'explore' | 'leaderboard' | 'podium'
 
-export type PipelineStep = 'raw' | 'enhanced' | 'segmented' | 'measured'
+export type ThemeMode = 'light' | 'dark'
+
+export type PipelineStep = 'raw' | 'segmented' | 'measured'
 
 export interface ExploreParams {
-  method: string
-  strength: number
-  stretch: [number, number]
   diameter_px: number
   sensitivity: number
 }
@@ -106,11 +105,6 @@ export interface LiveResult {
   cells_url: string
 }
 
-export interface LiveEnhance {
-  url: string
-  region: RegionRect | null
-}
-
 /** Normalized viewer state: image-coord centre + zoom relative to fit. */
 export interface StageView {
   cx: number
@@ -123,14 +117,12 @@ export interface ExploreState {
   imageId: string
   step: PipelineStep
   overlay: 'none' | 'outlines' | 'mask'
-  compare: number
   xKey: string
   yKey: string
   selectedLabel: number | null
   hoveredLabel: number | null
   params: ExploreParams
   busy: boolean
-  liveEnhance: LiveEnhance | null
   liveResult: LiveResult | null
   view: StageView | null
 }

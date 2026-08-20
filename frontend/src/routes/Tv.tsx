@@ -7,7 +7,6 @@ import type { Manifest } from '../api/types'
 import { biLine, copy } from '../copy'
 import { BiText } from '../components/common/BiText'
 import { EventMark } from '../components/common/EventMark'
-import { PoweredBy } from '../components/common/PoweredBy'
 import { IdleShow } from '../components/tv/IdleShow'
 import Explore from './Explore'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
@@ -123,9 +122,6 @@ function PodiumScene() {
     <div className="relative flex h-full flex-col items-center justify-center gap-16">
       <EventMark size={42} label={biLine(copy.podium.heading, lang)} />
       <Podium entries={entries} />
-      <div className="absolute bottom-6">
-        <PoweredBy size={12} />
-      </div>
     </div>
   )
 }

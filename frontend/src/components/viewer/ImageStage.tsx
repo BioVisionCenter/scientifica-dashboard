@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import type { Cell, LiveEnhance, LiveResult, ManifestImage, PipelineStep, StageView } from '../../api/types'
+import type { Cell, LiveResult, ManifestImage, PipelineStep, StageView } from '../../api/types'
 import { useLabelLookup } from './useLabelLookup'
 
 export type OverlayMode = 'none' | 'outlines' | 'mask'
@@ -21,12 +21,10 @@ interface Props {
   image: ManifestImage
   step: PipelineStep
   overlay: OverlayMode
-  compare: number // 0..1 divider position for the raw/enhanced comparison
   cells: Cell[]
   selectedLabel: number | null
   hoveredLabel: number | null
   liveResult?: LiveResult | null
-  liveEnhance?: LiveEnhance | null
   interactive?: boolean
   onCellClick?: (label: number | null) => void
   onViewportChange?: (region: Region) => void
@@ -158,7 +156,7 @@ export function ImageStage(props: Props) {
   )
 
   return (
-    <div ref={containerRef} className="relative h-full w-full overflow-hidden bg-black/60">
+    <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ background: 'var(--ccc-stage)' }}>
       {fitScale !== null && (
         <TransformWrapper
           key={props.image.id}
@@ -194,7 +192,7 @@ function reportViewport(
 }
 
 function StageContent(props: Props) {
-  const { image, step, overlay, compare, cells } = props
+  const { image, step, overlay, cells } = props
   const lookup = useLabelLookup(step === 'segmented' || step === 'measured' ? image.assets.labels : null)
   const { zoomIn, zoomOut, resetTransform } = useControls()
 
@@ -212,7 +210,6 @@ function StageContent(props: Props) {
   )
 
   const showEnhanced = step !== 'raw'
-  const showCompare = step === 'enhanced'
   const overlayUrl =
     (step === 'segmented' || step === 'measured') && overlay !== 'none'
       ? overlay === 'outlines'
@@ -239,28 +236,6 @@ function StageContent(props: Props) {
               alt=""
               draggable={false}
               className="absolute inset-0"
-              style={showCompare ? { clipPath: `inset(0 0 0 ${compare * 100}%)` } : undefined}
-            />
-          )}
-          {showCompare && (
-            <div
-              className="absolute top-0 bottom-0 w-[3px]"
-              style={{ left: `${compare * 100}%`, background: 'var(--ngio-accent)' }}
-            />
-          )}
-          {props.liveEnhance?.region && step === 'enhanced' && (
-            <img
-              src={props.liveEnhance.url}
-              alt=""
-              draggable={false}
-              className="absolute"
-              style={{
-                left: props.liveEnhance.region.x,
-                top: props.liveEnhance.region.y,
-                width: props.liveEnhance.region.width,
-                height: props.liveEnhance.region.height,
-                outline: '2px dashed var(--ngio-accent)',
-              }}
             />
           )}
           {overlayUrl && !props.liveResult && (

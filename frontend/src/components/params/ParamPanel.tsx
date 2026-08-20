@@ -8,16 +8,9 @@ interface Props {
   busyStage: string | null
   liveCount: number | null
   onChange: (p: ExploreParams) => void
-  onRunEnhance: () => void
   onRunSegment: () => void
   onReset: () => void
 }
-
-const METHODS = [
-  { key: 'gaussian', label: 'Gaussian' },
-  { key: 'median', label: 'Median' },
-  { key: 'nl_means', label: 'Non-local means' },
-]
 
 function Slider({
   label,
@@ -71,44 +64,12 @@ export function ParamPanel(props: Props) {
         </button>
       </div>
 
-      {step === 'enhanced' && (
-        <>
-          <div className="flex gap-1.5">
-            {METHODS.map((m) => (
-              <button
-                key={m.key}
-                className={`btn flex-1 ${params.method === m.key ? 'btn-active' : ''}`}
-                style={{ padding: '7px 6px', fontSize: 12.5 }}
-                onClick={() => set({ method: m.key })}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <Slider
-            label="Smoothing strength"
-            value={params.strength}
-            min={0}
-            max={6}
-            step={0.5}
-            onChange={(v) => set({ strength: v })}
-          />
-          <Slider
-            label="Contrast: clip brightest"
-            value={params.stretch[1]}
-            min={95}
-            max={100}
-            step={0.1}
-            unit="%"
-            onChange={(v) => set({ stretch: [params.stretch[0], v] })}
-          />
-          <button className="btn btn-primary" disabled={busy} onClick={props.onRunEnhance}>
-            {busy ? 'Computing…' : 'Enhance visible region'}
-          </button>
-        </>
-      )}
-
-      {(step === 'segmented' || step === 'measured') && (
+      {step === 'raw' ? (
+        <p className="text-[13px]" style={{ color: 'var(--ngio-muted)' }}>
+          This is the image straight from the microscope. Move to Segment to let the
+          AI find every cell — and tune its parameters yourself.
+        </p>
+      ) : (
         <>
           <Slider
             label="Expected cell size"
@@ -136,13 +97,6 @@ export function ParamPanel(props: Props) {
             </div>
           )}
         </>
-      )}
-
-      {step === 'raw' && (
-        <p className="text-[13px]" style={{ color: 'var(--ngio-muted)' }}>
-          This is the image straight from the microscope. Move to the next step to
-          enhance it — and to play with the parameters yourself.
-        </p>
       )}
     </div>
   )

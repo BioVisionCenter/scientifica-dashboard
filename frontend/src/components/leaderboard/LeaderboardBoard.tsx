@@ -3,7 +3,7 @@ import type { Entry } from '../../api/types'
 import { copy } from '../../copy'
 import { BiText } from '../common/BiText'
 
-const MEDALS = ['#ffd700', '#c0c0c0', '#cd7f32']
+const MEDALS = ['var(--ccc-gold)', 'var(--ccc-silver)', 'var(--ccc-bronze)']
 
 interface Props {
   entries: Entry[]

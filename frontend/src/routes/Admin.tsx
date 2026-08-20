@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
+import { useWebsocket } from '../api/ws'
 import { api } from '../api/client'
 import type { GameImage, Scene } from '../api/types'
 import type { TvLang } from '../copy'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
+import { EventMark } from '../components/common/EventMark'
+import { useSound } from '../lib/sound'
 import { timeAgo } from '../lib/time'
+import Explore from './Explore'
 
 const SCENES: Scene[] = ['idle', 'explore', 'leaderboard', 'podium']
 const LANGS: { key: TvLang; label: string }[] = [
@@ -13,10 +18,106 @@ const LANGS: { key: TvLang; label: string }[] = [
   { key: 'bi', label: 'DE+EN' },
 ]
 
+/** The single operator page: TV controls always visible, Game and Explore tabs. */
 export default function Admin() {
-  const entries = useAppStore((s) => s.entries)
+  useWebsocket('admin')
   const scene = useAppStore((s) => s.scene)
   const lang = useAppStore((s) => s.lang)
+  const theme = useAppStore((s) => s.theme)
+  const connected = useAppStore((s) => s.connected)
+  const sound = useSound()
+
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') === 'explore' ? 'explore' : 'game'
+  const setTab = (t: 'game' | 'explore') => setSearchParams(t === 'game' ? {} : { tab: t })
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-2" style={{ borderBottom: 'var(--ngio-border)' }}>
+        <EventMark size={22} />
+        <div className="flex gap-1.5">
+          {(['game', 'explore'] as const).map((t) => (
+            <button
+              key={t}
+              className={`btn ${tab === t ? 'btn-active' : ''}`}
+              style={{ padding: '6px 14px', fontSize: 13 }}
+              onClick={() => setTab(t)}
+            >
+              {t === 'game' ? 'Game' : 'Explore'}
+            </button>
+          ))}
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="eyebrow">tv scene</span>
+          <div className="flex gap-1">
+            {SCENES.map((s) => (
+              <button
+                key={s}
+                className={`btn ${scene === s ? 'btn-active' : ''}`}
+                style={{ padding: '5px 9px', fontSize: 12 }}
+                onClick={() => api.setScene(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+          <span className="eyebrow">language</span>
+          <div className="flex gap-1">
+            {LANGS.map((l) => (
+              <button
+                key={l.key}
+                className={`btn ${lang === l.key ? 'btn-active' : ''}`}
+                style={{ padding: '5px 9px', fontSize: 12 }}
+                onClick={() => api.setLang(l.key)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </div>
+          <span className="eyebrow">theme</span>
+          <div className="flex gap-1">
+            {(['light', 'dark'] as const).map((t) => (
+              <button
+                key={t}
+                className={`btn ${theme === t ? 'btn-active' : ''}`}
+                style={{ padding: '5px 9px', fontSize: 12 }}
+                onClick={() => api.setTheme(t)}
+              >
+                {t === 'light' ? '☀' : '☾'} {t}
+              </button>
+            ))}
+          </div>
+          <button
+            className="btn"
+            style={{ padding: '5px 9px', fontSize: 12 }}
+            onClick={sound.toggle}
+            title="Sound cues on the reveal (no audio assets yet)"
+          >
+            {sound.enabled ? '🔊' : '🔇'}
+          </button>
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full"
+            title={connected ? 'connected' : 'disconnected'}
+            style={{ background: connected ? 'var(--ngio-green)' : 'var(--ngio-magenta)' }}
+          />
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1">
+        {/* both tabs stay mounted: unmounting Explore would kill a live broadcast */}
+        <div className={tab === 'game' ? 'h-full' : 'hidden'}>
+          <GameTab />
+        </div>
+        <div className={tab === 'explore' ? 'h-full min-h-0' : 'hidden'}>
+          <Explore />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GameTab() {
+  const entries = useAppStore((s) => s.entries)
 
   const [images, setImages] = useState<GameImage[]>([])
   const [imageId, setImageId] = useState('')
@@ -106,35 +207,11 @@ export default function Admin() {
   }
 
   const selectedImage = images.find((i) => i.id === imageId)
-  const patchChip = (id: string, boss: boolean) =>
-    boss ? 'BOSS' : `#${id.replace('patch_', '')}`
+  const patchChip = (id: string, boss: boolean) => (boss ? 'BOSS' : `#${id.replace('patch_', '')}`)
 
   return (
     <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
       <div className="flex min-h-0 flex-col gap-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="eyebrow">tv scene</span>
-          {SCENES.map((s) => (
-            <button
-              key={s}
-              className={`btn ${scene === s ? 'btn-active' : ''}`}
-              onClick={() => api.setScene(s)}
-            >
-              {s}
-            </button>
-          ))}
-          <span className="eyebrow ml-4">tv language</span>
-          {LANGS.map((l) => (
-            <button
-              key={l.key}
-              className={`btn ${lang === l.key ? 'btn-active' : ''}`}
-              onClick={() => api.setLang(l.key)}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-
         <div className="card flex flex-col gap-4 p-5">
           <span className="eyebrow">new attempt</span>
           <div className="flex gap-3">
@@ -264,11 +341,7 @@ export default function Admin() {
                   <span className="font-mono font-medium" style={{ color: 'var(--ngio-accent-ink)' }}>
                     {e.score}
                   </span>
-                  <button
-                    className="btn"
-                    style={{ padding: '4px 10px' }}
-                    onClick={() => removeEntry(e.id, e.name)}
-                  >
+                  <button className="btn" style={{ padding: '4px 10px' }} onClick={() => removeEntry(e.id, e.name)}>
                     ×
                   </button>
                 </div>

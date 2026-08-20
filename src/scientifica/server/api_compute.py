@@ -59,19 +59,8 @@ def _enhance_channels(rgb: np.ndarray, method: str, strength: float, stretch: tu
     return enh_n, enh_m
 
 
-@router.post("/enhance")
-async def compute_enhance(body: EnhanceBody):
-    rgb = _load_region(body.image_id, body.region)
-    enh_n, enh_m = await asyncio.to_thread(
-        _enhance_channels, rgb, body.method, body.strength, body.stretch
-    )
-    out = channels.composite(enh_n, enh_m, config.NUCLEI_HEX, config.MEMBRANE_HEX)
-    # live results land in the served assets dir so every screen (operator
-    # AND the mirroring TV) loads the exact same file
-    url = _save_live(f"enhance_{uuid.uuid4().hex[:8]}.png", Image.fromarray(out))
-    return {"url": url, "region": body.region.model_dump() if body.region else None}
-
-
+# live results land in the served assets dir so every screen (operator AND
+# the mirroring TV) loads the exact same file
 LIVE_DIR = config.DERIVED_DIR / "_live"
 
 

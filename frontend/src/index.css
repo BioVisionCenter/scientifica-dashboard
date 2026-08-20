@@ -4,8 +4,8 @@
 @import './styles/spacing.css';
 @import 'tailwindcss';
 
-/* Map the ngio tokens into Tailwind theme variables (dark theme is pinned
-   on <html data-ngio-theme="dark"> — this is a TV surface). */
+/* Map the ngio tokens into Tailwind theme variables. The theme (light/dark)
+   is an operator setting applied as data-ngio-theme on <html> (main.tsx). */
 @theme {
   --color-paper: var(--ngio-paper);
   --color-surface: var(--ngio-surface);
@@ -118,4 +118,16 @@ body {
 
 input[type='range'] {
   accent-color: var(--ngio-accent);
+}
+
+/* Content layered over dark microscopy images: light inks in BOTH themes. */
+.on-image {
+  color: var(--ccc-on-scrim);
+  --ngio-ink: var(--ccc-on-scrim);
+  --ngio-ink-2: var(--ccc-on-scrim);
+  --ngio-muted: var(--ccc-on-scrim-muted);
+  --ngio-faint: var(--ccc-on-scrim-muted);
+  --ngio-accent-ink: var(--ccc-cyan-bright);
+  --ccc-cyan-ink: var(--ccc-cyan-bright);
+  --ccc-magenta-ink: var(--ccc-magenta-bright);
 }

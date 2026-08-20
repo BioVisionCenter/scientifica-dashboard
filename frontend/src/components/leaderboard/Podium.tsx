@@ -2,9 +2,9 @@ import { motion } from 'motion/react'
 import type { Entry } from '../../api/types'
 
 const SPOTS = [
-  { rank: 2, height: 180, color: '#c0c0c0' },
-  { rank: 1, height: 250, color: '#ffd700' },
-  { rank: 3, height: 130, color: '#cd7f32' },
+  { rank: 2, height: 180, color: 'var(--ccc-silver)' },
+  { rank: 1, height: 250, color: 'var(--ccc-gold)' },
+  { rank: 3, height: 130, color: 'var(--ccc-bronze)' },
 ]
 
 /** Top-3 podium for the dedicated podium scene. */

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence, animate } from 'motion/react'
+import type { Bi } from '../../copy'
 import type { Manifest, ManifestImage } from '../../api/types'
 import { useAppStore } from '../../stores/appStore'
 import { biLine, copy } from '../../copy'
 import { BiText } from '../common/BiText'
 import { EventMark } from '../common/EventMark'
-import { PoweredBy } from '../common/PoweredBy'
 
-type SlideType = 'beauty' | 'enhance' | 'segment' | 'cta'
+type SlideType = 'beauty' | 'segment' | 'data' | 'about' | 'game' | 'cta'
 
 interface Slide {
   key: string
@@ -18,8 +18,10 @@ interface Slide {
 
 const DURATIONS: Record<SlideType, number> = {
   beauty: 8000,
-  enhance: 11000,
   segment: 11000,
+  data: 12000,
+  about: 12000,
+  game: 10000,
   cta: 8000,
 }
 
@@ -31,30 +33,28 @@ const KEN_BURNS = [
   { scale: [1.28, 1.16], x: [-20, 30], y: [20, -10] },
 ]
 
+// One full loop tells the whole story: pretty data, AI counting, then who we
+// are, what the data is, how to play, and the call to action.
+const ROTATION: SlideType[] = [
+  'beauty', 'segment', 'data',
+  'beauty', 'segment', 'about',
+  'beauty', 'segment', 'game',
+  'cta',
+]
+
 function buildSlides(manifest: Manifest): Slide[] {
-  const types: SlideType[] = ['beauty', 'enhance', 'segment']
   const hero = manifest.images.find((i) => i.hero) ?? manifest.images[0]
-  const slides: Slide[] = []
-  manifest.images.forEach((img, i) => {
-    const type = types[i % 3]
-    slides.push({ key: `${img.id}-${type}`, type, image: img, duration: DURATIONS[type] })
-    if (i % 3 === 2) {
-      slides.push({ key: `cta-${i}`, type: 'cta', image: hero, duration: DURATIONS.cta })
-    }
+  let cursor = 0
+  return ROTATION.map((type, i) => {
+    const usesImage = type === 'beauty' || type === 'segment'
+    const image = usesImage ? manifest.images[cursor++ % manifest.images.length] : hero
+    return { key: `${i}-${type}-${image.id}`, type, image, duration: DURATIONS[type] }
   })
-  return slides
 }
 
 function slideAssets(slide: Slide): string[] {
-  switch (slide.type) {
-    case 'beauty':
-    case 'cta':
-      return [slide.image.assets.enhanced]
-    case 'enhance':
-      return [slide.image.assets.raw, slide.image.assets.enhanced]
-    case 'segment':
-      return [slide.image.assets.enhanced, slide.image.assets.outlines]
-  }
+  if (slide.type === 'segment') return [slide.image.assets.enhanced, slide.image.assets.outlines]
+  return [slide.image.assets.enhanced]
 }
 
 /** Self-running attract loop for the idle scene. */
@@ -81,7 +81,9 @@ export function IdleShow({ manifest }: { manifest: Manifest }) {
   }, [index, slides])
 
   return (
-    <div className="relative h-full overflow-hidden">
+    // the slideshow always composes over a dark stage, in both themes:
+    // dimmed fluorescence images over white wash out
+    <div className="relative h-full overflow-hidden" style={{ background: 'var(--ccc-stage)' }}>
       <AnimatePresence initial={false}>
         <motion.div
           key={slide.key}
@@ -92,8 +94,14 @@ export function IdleShow({ manifest }: { manifest: Manifest }) {
           transition={{ duration: 1.2 }}
         >
           {slide.type === 'beauty' && <BeautySlide slide={slide} kb={index % 4} />}
-          {slide.type === 'enhance' && <EnhanceSlide slide={slide} kb={index % 4} />}
           {slide.type === 'segment' && <SegmentSlide slide={slide} kb={index % 4} />}
+          {slide.type === 'data' && (
+            <InfoSlide slide={slide} kb={index % 4} content={copy.aboutData} />
+          )}
+          {slide.type === 'about' && (
+            <InfoSlide slide={slide} kb={index % 4} content={copy.aboutUs} />
+          )}
+          {slide.type === 'game' && <GameSlide slide={slide} kb={index % 4} />}
           {slide.type === 'cta' && <CtaSlide slide={slide} />}
         </motion.div>
       </AnimatePresence>
@@ -121,8 +129,8 @@ function KenBurnsImg({ src, kb, duration, opacity = 1 }: { src: string; kb: numb
 function CaptionBar({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="absolute inset-x-0 bottom-0 flex items-end justify-between px-14 pt-24 pb-10"
-      style={{ background: 'linear-gradient(transparent, rgba(11,17,19,0.85))' }}
+      className="on-image absolute inset-x-0 bottom-0 flex items-end justify-between px-14 pt-24 pb-10"
+      style={{ background: 'linear-gradient(transparent, var(--ccc-scrim-strong))' }}
     >
       {children}
     </div>
@@ -135,33 +143,6 @@ function BeautySlide({ slide, kb }: { slide: Slide; kb: number }) {
       <KenBurnsImg src={slide.image.assets.enhanced} kb={kb} duration={slide.duration} />
       <CaptionBar>
         <BiText text={copy.idle.beautyCaption} size={26} align="left" />
-        <span className="eyebrow" style={{ fontSize: 14 }}>{slide.image.title}</span>
-      </CaptionBar>
-    </>
-  )
-}
-
-function EnhanceSlide({ slide, kb }: { slide: Slide; kb: number }) {
-  return (
-    <>
-      <KenBurnsImg src={slide.image.assets.raw} kb={kb} duration={slide.duration} />
-      <motion.img
-        src={slide.image.assets.enhanced}
-        alt=""
-        className="absolute inset-0 h-full w-full object-cover"
-        initial={{ clipPath: 'inset(0 100% 0 0)' }}
-        animate={{ clipPath: 'inset(0 0% 0 0)' }}
-        transition={{ delay: 2, duration: 4.5, ease: [0.4, 0, 0.2, 1] }}
-      />
-      <motion.div
-        className="absolute top-0 bottom-0 w-[3px]"
-        style={{ background: 'var(--ccc-cyan)', boxShadow: '0 0 18px var(--ccc-cyan)' }}
-        initial={{ left: '0%', opacity: 0 }}
-        animate={{ left: ['0%', '100%'], opacity: [0, 1, 1, 0] }}
-        transition={{ delay: 2, duration: 4.5, ease: [0.4, 0, 0.2, 1] }}
-      />
-      <CaptionBar>
-        <BiText text={copy.idle.enhanceTeaser} size={26} align="left" />
         <span className="eyebrow" style={{ fontSize: 14 }}>{slide.image.title}</span>
       </CaptionBar>
     </>
@@ -192,7 +173,7 @@ function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
         animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 1.5 }}
       />
-      <div className="absolute top-10 right-14 flex flex-col items-end">
+      <div className="on-image absolute top-10 right-14 flex flex-col items-end">
         <span
           className="font-mono font-medium"
           style={{ fontSize: 88, lineHeight: 1, color: 'var(--ccc-cyan-ink)', textShadow: '0 2px 24px rgba(0,0,0,0.8)' }}
@@ -211,6 +192,84 @@ function SegmentSlide({ slide, kb }: { slide: Slide; kb: number }) {
   )
 }
 
+interface InfoContent {
+  kicker: Bi
+  headline: Bi
+  body1: Bi
+  body2: Bi
+  credit: Bi
+}
+
+function InfoBackdrop({ slide, kb }: { slide: Slide; kb: number }) {
+  return (
+    <>
+      <KenBurnsImg src={slide.image.assets.enhanced} kb={kb} duration={slide.duration} opacity={0.35} />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'linear-gradient(100deg, var(--ccc-scrim-strong) 0%, var(--ccc-scrim) 55%, var(--ccc-scrim-weak) 100%)',
+        }}
+      />
+    </>
+  )
+}
+
+function InfoSlide({ slide, kb, content }: { slide: Slide; kb: number; content: InfoContent }) {
+  const lang = useAppStore((s) => s.lang)
+  return (
+    <>
+      <InfoBackdrop slide={slide} kb={kb} />
+      <div className="on-image relative z-10 flex h-full flex-col justify-center gap-7 px-24" style={{ maxWidth: '62rem' }}>
+        <span className="eyebrow" style={{ fontSize: 15, color: 'var(--ccc-cyan-bright)' }}>
+          {biLine(content.kicker, lang)}
+        </span>
+        <BiText
+          text={content.headline}
+          size={46}
+          weight={600}
+          align="left"
+          deStyle={{ fontFamily: 'Space Grotesk, sans-serif', letterSpacing: '-0.03em' }}
+        />
+        <BiText text={content.body1} size={25} align="left" />
+        <BiText text={content.body2} size={25} align="left" />
+        <span className="font-mono" style={{ fontSize: 14, color: 'var(--ccc-on-scrim-muted)' }}>
+          {biLine(content.credit, lang)}
+        </span>
+      </div>
+    </>
+  )
+}
+
+function GameSlide({ slide, kb }: { slide: Slide; kb: number }) {
+  const lang = useAppStore((s) => s.lang)
+  const steps = [copy.howItWorks.step1, copy.howItWorks.step2, copy.howItWorks.step3]
+  return (
+    <>
+      <InfoBackdrop slide={slide} kb={kb} />
+      <div className="on-image relative z-10 flex h-full flex-col justify-center gap-8 px-24" style={{ maxWidth: '62rem' }}>
+        <span className="eyebrow" style={{ fontSize: 15, color: 'var(--ccc-cyan-bright)' }}>
+          {biLine(copy.howItWorks.kicker, lang)}
+        </span>
+        {steps.map((s, i) => (
+          <motion.div
+            key={i}
+            className="flex items-center gap-6"
+            initial={{ opacity: 0, x: -30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.8 + i * 0.7 }}
+          >
+            <span className="font-mono font-medium" style={{ fontSize: 44, color: 'var(--ccc-cyan-bright)' }}>
+              {i + 1}
+            </span>
+            <BiText text={s} size={26} align="left" />
+          </motion.div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 function CtaSlide({ slide }: { slide: Slide }) {
   const entries = useAppStore((s) => s.entries)
   const lang = useAppStore((s) => s.lang)
@@ -220,11 +279,19 @@ function CtaSlide({ slide }: { slide: Slide }) {
       <KenBurnsImg src={slide.image.assets.enhanced} kb={1} duration={slide.duration} opacity={0.45} />
       <div
         className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, rgba(11,17,19,0.85) 0%, rgba(11,17,19,0.3) 65%, rgba(11,17,19,0.6) 100%)' }}
+        style={{
+          background:
+            'radial-gradient(ellipse at center, var(--ccc-scrim-strong) 0%, var(--ccc-scrim-weak) 65%, var(--ccc-scrim) 100%)',
+        }}
       />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-9 px-10">
+      <div className="on-image relative z-10 flex h-full flex-col items-center justify-center gap-9 px-10">
         <EventMark size={80} />
-        <BiText text={copy.idle.headline} size={54} weight={600} deStyle={{ fontFamily: 'Space Grotesk, sans-serif', letterSpacing: '-0.03em' }} />
+        <BiText
+          text={copy.idle.headline}
+          size={54}
+          weight={600}
+          deStyle={{ fontFamily: 'Space Grotesk, sans-serif', letterSpacing: '-0.03em' }}
+        />
         <BiText text={copy.idle.cta} size={28} />
         {champion && (
           <motion.span
@@ -237,9 +304,6 @@ function CtaSlide({ slide }: { slide: Slide }) {
             {biLine(copy.idle.champion(champion.name), lang)} — {champion.score}
           </motion.span>
         )}
-        <div className="absolute bottom-8">
-          <PoweredBy size={13} />
-        </div>
       </div>
     </>
   )

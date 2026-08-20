@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import Plotly from 'plotly.js-dist-min'
 import type { Cell, FeatureKey } from '../../api/types'
+import { useAppStore } from '../../stores/appStore'
 
 interface Props {
   cells: Cell[]
@@ -19,6 +20,8 @@ function cssVar(name: string): string {
 /** Single-series per-cell feature scatter (WebGL). Click/hover sync with the viewer. */
 export function FeatureScatter({ cells, features, xKey, yKey, selectedLabel, onSelect, onHover }: Props) {
   const ref = useRef<HTMLDivElement>(null)
+  // colors are snapshotted from CSS vars: re-render the plot on theme change
+  const theme = useAppStore((s) => s.theme)
 
   const labelFor = useMemo(() => {
     const m = new Map(features.map((f) => [f.key, f.label]))
@@ -111,7 +114,7 @@ export function FeatureScatter({ cells, features, xKey, yKey, selectedLabel, onS
       anyEl.removeAllListeners?.('plotly_hover')
       anyEl.removeAllListeners?.('plotly_unhover')
     }
-  }, [cells, xKey, yKey, selectedLabel, labelFor, onSelect, onHover])
+  }, [cells, xKey, yKey, selectedLabel, labelFor, onSelect, onHover, theme])
 
   useEffect(() => {
     const el = ref.current
