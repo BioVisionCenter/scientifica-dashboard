@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api")
 _tv_state = {"scene": "idle", "payload": {}, "lang": "bi", "theme": "dark"}
 
 SCENES = ("idle", "explore", "leaderboard", "podium")
-LANGS = ("de", "en", "bi")
+LANGS = ("de", "en", "it", "fr", "bi", "rotate")
 THEMES = ("light", "dark")
 
 

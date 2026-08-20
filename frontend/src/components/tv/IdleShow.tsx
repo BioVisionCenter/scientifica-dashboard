@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence, animate } from 'motion/react'
 import type { Bi } from '../../copy'
 import type { Manifest, ManifestImage } from '../../api/types'
-import { useAppStore } from '../../stores/appStore'
+import { useAppStore, useDisplayLang } from '../../stores/appStore'
 import { biLine, copy } from '../../copy'
 import { BiText } from '../common/BiText'
 import { EventMark } from '../common/EventMark'
@@ -135,7 +135,7 @@ function CaptionBar({ children }: { children: React.ReactNode }) {
 
 function SegmentSlide({ slide }: { slide: Slide }) {
   const [count, setCount] = useState(0)
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   useEffect(() => {
     const counter = animate(0, slide.image.cell_count, {
       delay: 1.5,
@@ -178,7 +178,7 @@ function SegmentSlide({ slide }: { slide: Slide }) {
           {count.toLocaleString()}
         </span>
         <span className="eyebrow" style={{ fontSize: 15 }}>
-          {biLine({ de: 'Zellen', en: 'cells' }, lang)}
+          {biLine(copy.idle.cellsLabel, lang)}
         </span>
       </div>
       <CaptionBar>
@@ -213,7 +213,7 @@ function InfoBackdrop({ slide, kb }: { slide: Slide; kb: number }) {
 }
 
 function InfoSlide({ slide, kb, content }: { slide: Slide; kb: number; content: InfoContent }) {
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   return (
     <>
       <InfoBackdrop slide={slide} kb={kb} />
@@ -239,7 +239,7 @@ function InfoSlide({ slide, kb, content }: { slide: Slide; kb: number; content: 
 }
 
 function GameSlide({ slide, kb }: { slide: Slide; kb: number }) {
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   const steps = [copy.howItWorks.step1, copy.howItWorks.step2, copy.howItWorks.step3]
   return (
     <>
@@ -269,7 +269,7 @@ function GameSlide({ slide, kb }: { slide: Slide; kb: number }) {
 
 function CtaSlide({ slide }: { slide: Slide }) {
   const entries = useAppStore((s) => s.entries)
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   const champion = entries[0]
   return (
     <>

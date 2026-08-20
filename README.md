@@ -26,7 +26,7 @@ uv run scientifica-server    # serves everything on http://<laptop-ip>:8100
 - **TV**: open `http://<laptop-ip>:8100/tv` in a fullscreen browser (kiosk mode).
 - **Laptop**: `http://localhost:8100/admin` — everything lives here: the Game tab
   (entries, stopwatch, leaderboard preview) and the Explore tab (analysis panel;
-  "Broadcast to TV" mirrors it). TV scene, language (DE/EN/DE+EN) and theme
+  "Broadcast to TV" mirrors it). TV scene, language (DE/EN/IT/FR, DE+EN, or auto-rotate) and theme
   (light/dark) sit in the always-visible controls row.
 
 The TV needs no interaction: scenes (idle / explore / leaderboard / podium) are

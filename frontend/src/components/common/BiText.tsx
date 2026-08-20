@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import type { Bi } from '../../copy'
-import { useAppStore } from '../../stores/appStore'
+import { useDisplayLang } from '../../stores/appStore'
 
 interface Props {
   text: Bi
@@ -10,11 +10,11 @@ interface Props {
   deStyle?: CSSProperties
 }
 
-/** TV text honoring the language setting: German only, English only, or
-    German lead with a smaller muted English subline. */
+/** TV text honoring the language setting: one of DE/EN/IT/FR (rotate resolves
+    to whichever is current), or German lead with a smaller English subline. */
 export function BiText({ text, size = 24, weight = 400, align = 'center', deStyle }: Props) {
-  const lang = useAppStore((s) => s.lang)
-  const lead = lang === 'en' ? text.en : text.de
+  const lang = useDisplayLang()
+  const lead = lang === 'bi' ? text.de : text[lang]
   return (
     <span className="flex flex-col gap-1" style={{ textAlign: align }}>
       <span className="font-body" style={{ fontSize: size, fontWeight: weight, lineHeight: 1.25, ...deStyle }}>

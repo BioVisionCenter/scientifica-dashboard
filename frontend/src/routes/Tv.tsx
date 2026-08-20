@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useWebsocket } from '../api/ws'
-import { useAppStore } from '../stores/appStore'
+import { useAppStore, useDisplayLang } from '../stores/appStore'
 import { api } from '../api/client'
 import type { Manifest } from '../api/types'
 import { biLine, copy } from '../copy'
@@ -16,7 +16,7 @@ import { Podium } from '../components/leaderboard/Podium'
 export default function Tv() {
   useWebsocket('tv')
   const scene = useAppStore((s) => s.scene)
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   const connected = useAppStore((s) => s.connected)
 
   const [manifest, setManifest] = useState<Manifest | null>(null)
@@ -89,7 +89,7 @@ export default function Tv() {
 
 function LeaderboardScene() {
   const entries = useAppStore((s) => s.entries)
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   const reveal = useAppStore((s) => s.reveal)
   const setReveal = useAppStore((s) => s.setReveal)
   const [highlightId, setHighlightId] = useState<number | null>(null)
@@ -117,7 +117,7 @@ function LeaderboardScene() {
 
 function PodiumScene() {
   const entries = useAppStore((s) => s.entries)
-  const lang = useAppStore((s) => s.lang)
+  const lang = useDisplayLang()
   return (
     <div className="relative flex h-full flex-col items-center justify-center gap-16">
       <EventMark size={42} label={biLine(copy.podium.heading, lang)} />

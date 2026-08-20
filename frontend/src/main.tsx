@@ -20,6 +20,9 @@ useAppStore.subscribe((s, prev) => {
   if (s.theme !== prev.theme) applyTheme(s.theme)
 })
 
+// language auto-rotation (only visible while the language mode is 'rotate')
+setInterval(() => useAppStore.getState().advanceRotate(), 30000)
+
 const router = createBrowserRouter([
   { path: '/tv', element: <Tv /> },
   { path: '/admin', element: <Admin /> },

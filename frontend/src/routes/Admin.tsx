@@ -15,7 +15,10 @@ const SCENES: Scene[] = ['idle', 'explore', 'leaderboard', 'podium']
 const LANGS: { key: TvLang; label: string }[] = [
   { key: 'de', label: 'DE' },
   { key: 'en', label: 'EN' },
+  { key: 'it', label: 'IT' },
+  { key: 'fr', label: 'FR' },
   { key: 'bi', label: 'DE+EN' },
+  { key: 'rotate', label: '⟳' },
 ]
 
 /** The single operator page: TV controls always visible, Game and Explore tabs. */
