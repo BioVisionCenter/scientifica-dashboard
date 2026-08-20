@@ -48,7 +48,12 @@ if FRONTEND_DIST.exists():  # production: serve the built frontend with SPA fall
         candidate = FRONTEND_DIST / path
         if path and candidate.is_file():
             return FileResponse(candidate)
-        return FileResponse(FRONTEND_DIST / "index.html")
+        # never cache the shell: a TV holding a stale index.html would keep
+        # running an old bundle across deploys
+        return FileResponse(
+            FRONTEND_DIST / "index.html",
+            headers={"Cache-Control": "no-store"},
+        )
 
 
 def run() -> None:

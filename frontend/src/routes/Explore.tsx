@@ -132,15 +132,17 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     if (url) api.liveCells(url).then(setLiveCellsRaw).catch(console.error)
   }, [S?.liveResult?.cells_url])
 
-  // operator: publish the full state to the TV (throttled)
+  // operator: ALWAYS publish the full state (throttled), independent of the
+  // Broadcast toggle — so the TV's explore scene is a live mirror no matter
+  // how it was reached (Broadcast button or the scene controls).
   const syncTimer = useRef<number | null>(null)
   useEffect(() => {
-    if (mirror || !sendToTv || !S) return
+    if (mirror || !S) return
     if (syncTimer.current) window.clearTimeout(syncTimer.current)
     syncTimer.current = window.setTimeout(() => {
       void api.exploreSync(S as unknown as Record<string, unknown>)
     }, 120)
-  }, [mirror, sendToTv, S])
+  }, [mirror, S])
 
   // the toggle owns the TV scene: on -> explore mirror, off -> back to idle
   const toggleSendToTv = () => {

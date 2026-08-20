@@ -113,7 +113,12 @@ export function ImageStage(props: Props) {
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
-    const compute = () => setSize({ w: el.clientWidth, h: el.clientHeight })
+    const compute = () => {
+      // a hidden tab measures 0x0 — keep the last real size instead
+      if (el.clientWidth > 0 && el.clientHeight > 0) {
+        setSize({ w: el.clientWidth, h: el.clientHeight })
+      }
+    }
     compute()
     const obs = new ResizeObserver(compute)
     obs.observe(el)
