@@ -34,9 +34,11 @@ switched from the admin page, and it reconnects by itself if the server restarts
 
 ## Scoring
 
-`score = 1000 × exp(−|guess − true| / (0.1 × true)) × exp(−seconds / 90)`
+`score = 1000 × exp(−|guess − true| / (0.1 × true)) × exp(−seconds / true)`
 
-Accuracy dominates; a perfect count in 38 s beats a fast sloppy one. Entries are
+Both factors are normalized by the true count, so small and large patches play
+on the same scale: accuracy uses relative error, and the time budget is about
+one second per cell. Accuracy dominates; a perfect count beats a fast sloppy one. Entries are
 stored in `data/game.db` (SQLite) — delete the file to reset the leaderboard.
 
 ## Development
