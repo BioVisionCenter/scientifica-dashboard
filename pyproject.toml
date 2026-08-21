@@ -12,11 +12,11 @@ dependencies = [
     "uvicorn[standard]",
     "pydantic>=2",
     "pywavelets>=1.9.0",
+    "scipy",
 ]
 
 [project.scripts]
 scientifica-pipeline = "scientifica.pipeline.run:main"
-scientifica-patches = "scientifica.pipeline.game_patches:main"
 scientifica-server = "scientifica.server.main:run"
 
 [build-system]

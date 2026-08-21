@@ -54,11 +54,13 @@ export interface Manifest {
   images: ManifestImage[]
 }
 
-export interface GameImage {
-  id: string
-  image: string
-  source_roi: string
-  boss: boolean
+export interface GameRound {
+  round_id: string | null
+  image_id: string | null
+  image_url: string | null
+  status: 'idle' | 'armed' | 'running' | 'stopped'
+  elapsed: number | null
+  elapsed_now: number | null
 }
 
 export interface Entry {
@@ -80,15 +82,18 @@ export interface RevealPayload {
   guess: number
 }
 
-export type Scene = 'idle' | 'explore' | 'leaderboard' | 'podium'
+export type Scene = 'idle' | 'explore' | 'game' | 'leaderboard' | 'podium'
 
 export type ThemeMode = 'light' | 'dark'
 
 export type PipelineStep = 'raw' | 'segmented' | 'measured'
 
+export type Segmenter = 'cellpose' | 'otsu'
+
 export interface ExploreParams {
   diameter_px: number
   sensitivity: number
+  segmenter: Segmenter
 }
 
 export interface RegionRect {

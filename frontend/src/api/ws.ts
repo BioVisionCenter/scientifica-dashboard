@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { api } from './client'
-import type { Entry, RevealPayload, Scene } from './types'
+import type { Entry, GameRound, RevealPayload, Scene } from './types'
 
 /** Reconnecting websocket that dispatches messages into the app store. */
 export function useWebsocket(role: 'tv' | 'admin') {
@@ -14,16 +14,18 @@ export function useWebsocket(role: 'tv' | 'admin') {
 
     const resync = async () => {
       try {
-        const [scene, entries, exploreState] = await Promise.all([
+        const [scene, entries, exploreState, round] = await Promise.all([
           api.getScene(),
           api.entries(20),
           api.exploreState(),
+          api.gameRound(),
         ])
         store().setScene(scene.scene, scene.payload)
         if (scene.lang) store().setLang(scene.lang)
         if (scene.theme) store().setTheme(scene.theme)
         store().setEntries(entries)
         if (exploreState && Object.keys(exploreState).length) store().setExploreSync(exploreState)
+        store().setRound(round)
       } catch {
         /* backend not up yet; the next reconnect retries */
       }
@@ -70,6 +72,9 @@ export function useWebsocket(role: 'tv' | 'admin') {
             break
           case 'explore:sync':
             s.setExploreSync(payload)
+            break
+          case 'round:update':
+            s.setRound(payload as GameRound)
             break
           case 'job:progress':
             s.setJobStage({ jobId: payload.job_id, stage: payload.stage })

@@ -8,6 +8,7 @@ import { biLine, copy } from '../copy'
 import { BiText } from '../components/common/BiText'
 import { EventMark } from '../components/common/EventMark'
 import { IdleShow } from '../components/tv/IdleShow'
+import { GameScene } from '../components/tv/GameScene'
 import Explore from './Explore'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { RevealOverlay } from '../components/leaderboard/RevealOverlay'
@@ -57,6 +58,7 @@ export default function Tv() {
           >
             {scene === 'idle' && manifest && <IdleShow manifest={manifest} />}
             {scene === 'explore' && <Explore mirror />}
+            {scene === 'game' && <GameScene />}
             {scene === 'leaderboard' && <LeaderboardScene />}
             {scene === 'podium' && <PodiumScene />}
           </motion.div>

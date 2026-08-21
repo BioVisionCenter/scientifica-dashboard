@@ -1,17 +1,18 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
 import { useWebsocket } from '../api/ws'
 import { api } from '../api/client'
-import type { GameImage, Scene } from '../api/types'
+import type { ManifestImage, Scene } from '../api/types'
 import type { TvLang } from '../copy'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { EventMark } from '../components/common/EventMark'
 import { useSound } from '../lib/sound'
 import { timeAgo } from '../lib/time'
+import { formatClock, useRoundClock } from '../lib/useRoundClock'
 import Explore from './Explore'
 
-const SCENES: Scene[] = ['idle', 'explore', 'leaderboard', 'podium']
+const SCENES: Scene[] = ['idle', 'explore', 'game', 'leaderboard', 'podium']
 const LANGS: { key: TvLang; label: string }[] = [
   { key: 'de', label: 'DE' },
   { key: 'en', label: 'EN' },
@@ -121,31 +122,32 @@ export default function Admin() {
 
 function GameTab() {
   const entries = useAppStore((s) => s.entries)
+  const round = useAppStore((s) => s.round)
+  const clock = useRoundClock(round)
 
-  const [images, setImages] = useState<GameImage[]>([])
+  const [images, setImages] = useState<ManifestImage[]>([])
   const [imageId, setImageId] = useState('')
   const [customCount, setCustomCount] = useState('')
   const [name, setName] = useState('')
   const [guess, setGuess] = useState('')
   const [seconds, setSeconds] = useState(0)
-  const [running, setRunning] = useState(false)
   const [lastResult, setLastResult] = useState<string | null>(null)
   const [lastEntryId, setLastEntryId] = useState<number | null>(null)
   const [dupWarning, setDupWarning] = useState(false)
-  const startRef = useRef(0)
+
+  const running = round?.status === 'running'
 
   useEffect(() => {
-    api.gameImages().then((imgs) => {
-      setImages(imgs)
-      if (imgs.length) setImageId(imgs[0].id)
+    api.manifest().then((m) => {
+      setImages(m.images)
+      if (m.images.length) setImageId(m.images[0].id)
     })
   }, [])
 
+  // when the round stops, its authoritative time prefills the (editable) field
   useEffect(() => {
-    if (!running) return
-    const t = setInterval(() => setSeconds((Date.now() - startRef.current) / 1000), 100)
-    return () => clearInterval(t)
-  }, [running])
+    if (round?.status === 'stopped' && round.elapsed != null) setSeconds(round.elapsed)
+  }, [round?.status, round?.round_id, round?.elapsed])
 
   // re-render every 30s so relative times stay fresh
   const [, setTick] = useState(0)
@@ -174,14 +176,12 @@ function GameTab() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const start = () => {
-    startRef.current = Date.now()
-    setSeconds(0)
-    setRunning(true)
-  }
-  const stop = () => setRunning(false)
-
   const isCustom = imageId === 'custom'
+
+  const showOnTv = () => api.setRound(imageId).catch(() => {})
+  const startRound = () => api.startRound().catch(() => {})
+  const stopRound = () => api.stopRound().catch(() => {})
+  const clearRound = () => api.clearRound().catch(() => {})
 
   const submit = async () => {
     if (!name.trim() || !guess || seconds <= 0) return
@@ -215,19 +215,32 @@ function GameTab() {
   }
 
   const selectedImage = images.find((i) => i.id === imageId)
-  const patchChip = (id: string, boss: boolean) =>
-    id === 'custom' ? '✎ custom' : boss ? 'BOSS' : `#${id.replace('patch_', '')}`
+  const roundLive = round != null && round.status !== 'idle'
+  const roundMatchesSelection = round?.image_id === imageId
 
   return (
     <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
       <div className="flex min-h-0 flex-col gap-5">
         <div className="card flex flex-col gap-4 p-5">
-          <span className="eyebrow">new attempt</span>
+          <div className="flex items-center justify-between">
+            <span className="eyebrow">round</span>
+            {roundLive && (
+              <span
+                className="rounded px-2 py-0.5 font-mono text-[11px]"
+                style={{
+                  background: running ? 'var(--ccc-magenta-soft)' : 'var(--ngio-sunk)',
+                  color: running ? 'var(--ccc-magenta-ink)' : 'var(--ngio-faint)',
+                }}
+              >
+                {round.image_id} · {round.status}
+              </span>
+            )}
+          </div>
           <div className="flex gap-3">
             <select className="input flex-1" value={imageId} onChange={(e) => setImageId(e.target.value)}>
               {images.map((img) => (
                 <option key={img.id} value={img.id}>
-                  {img.id} {img.boss ? '— BOSS ROUND' : ''} ({img.source_roi})
+                  {img.title} ({img.id}){img.hero ? ' — HERO' : ''}
                 </option>
               ))}
               <option value="custom">Custom… (type the true count yourself)</option>
@@ -242,6 +255,45 @@ function GameTab() {
                 onChange={(e) => setCustomCount(e.target.value)}
               />
             )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="btn" style={{ padding: '13px 18px' }} onClick={showOnTv} disabled={running}>
+              📺 Show on TV
+            </button>
+            {!running ? (
+              <button
+                className="btn btn-primary"
+                style={{ padding: '13px 18px' }}
+                onClick={startRound}
+                disabled={!roundLive || !roundMatchesSelection}
+                title={roundLive ? undefined : 'Show the round on the TV first'}
+              >
+                ▶ Start
+              </button>
+            ) : (
+              <button className="btn btn-primary" style={{ padding: '13px 18px' }} onClick={stopRound}>
+                ■ Stop
+              </button>
+            )}
+            <button className="btn" style={{ padding: '13px 18px' }} onClick={clearRound} disabled={!roundLive}>
+              Clear
+            </button>
+            <span
+              className="ml-auto font-mono"
+              style={{
+                fontSize: 34,
+                fontVariantNumeric: 'tabular-nums',
+                color: running ? 'var(--ngio-accent)' : roundLive ? undefined : 'var(--ngio-faint)',
+              }}
+            >
+              {formatClock(clock)}
+            </span>
+          </div>
+        </div>
+
+        <div className="card flex flex-col gap-4 p-5">
+          <span className="eyebrow">new attempt</span>
+          <div className="flex items-center gap-3">
             <input
               className="input flex-1"
               placeholder="Participant name"
@@ -251,31 +303,20 @@ function GameTab() {
                 setDupWarning(false)
               }}
             />
-          </div>
-          <div className="flex items-center gap-3">
-            <label className="flex flex-1 flex-col gap-1">
+            <label className="flex w-44 flex-col gap-1">
               <span className="eyebrow">time (seconds)</span>
               <input
                 className="input font-mono"
-                style={{ fontSize: 22, color: running ? 'var(--ngio-accent)' : undefined }}
+                style={{ fontSize: 22 }}
                 type="number"
                 min={0}
                 step={0.1}
                 value={seconds ? seconds.toFixed(1) : ''}
-                placeholder="type or use stopwatch"
+                placeholder="from the round"
                 onChange={(e) => setSeconds(parseFloat(e.target.value) || 0)}
                 disabled={running}
               />
             </label>
-            {!running ? (
-              <button className="btn self-end" style={{ padding: '13px 18px' }} onClick={start}>
-                ▶ Stopwatch
-              </button>
-            ) : (
-              <button className="btn btn-primary self-end" style={{ padding: '13px 18px' }} onClick={stop}>
-                ■ Stop
-              </button>
-            )}
             <label className="flex w-36 flex-col gap-1">
               <span className="eyebrow">their count</span>
               <input
@@ -319,12 +360,12 @@ function GameTab() {
 
         {selectedImage && (
           <div className="card flex items-center gap-4 p-4">
-            <img src={selectedImage.image} alt="" className="h-36 w-36 rounded-lg object-cover" />
+            <img src={selectedImage.assets.enhanced} alt="" className="h-36 w-36 rounded-lg object-cover" />
             <div className="flex flex-col gap-1.5">
-              <span className="eyebrow">reference image</span>
+              <span className="eyebrow">round image</span>
               <p className="text-sm" style={{ color: 'var(--ngio-muted)', maxWidth: '38ch' }}>
-                Participants count on the printed sheet. Pick the sheet's image here so the
-                score uses the right true count — it stays hidden until the reveal.
+                Show on TV puts this image and the stopwatch on the big screen. The true
+                count stays hidden until the reveal.
               </p>
             </div>
           </div>
@@ -336,7 +377,6 @@ function GameTab() {
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           <div className="flex flex-col gap-2">
             {entries.map((e) => {
-              const img = images.find((i) => i.id === e.game_image_id)
               return (
                 <div key={e.id} className="card flex items-center gap-3 px-4 py-2 text-sm">
                   <span className="w-7 font-mono" style={{ color: 'var(--ngio-faint)' }}>
@@ -345,12 +385,9 @@ function GameTab() {
                   <span className="flex-1 truncate font-medium">{e.name}</span>
                   <span
                     className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
-                    style={{
-                      background: img?.boss ? 'var(--ccc-magenta-soft)' : 'var(--ngio-sunk)',
-                      color: img?.boss ? 'var(--ccc-magenta-ink)' : 'var(--ngio-faint)',
-                    }}
+                    style={{ background: 'var(--ngio-sunk)', color: 'var(--ngio-faint)' }}
                   >
-                    {patchChip(e.game_image_id, !!img?.boss)}
+                    {e.game_image_id === 'custom' ? '✎ custom' : e.game_image_id}
                   </span>
                   <span className="font-mono text-[11px]" style={{ color: 'var(--ngio-faint)' }}>
                     {timeAgo(e.created_at)}

@@ -5,10 +5,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = PROJECT_ROOT / "scietifica_data"
 DERIVED_DIR = PROJECT_ROOT / "data" / "derived"
-GAME_DIR = DERIVED_DIR / "game"
 DB_PATH = PROJECT_ROOT / "data" / "game.db"
 MANIFEST_PATH = DERIVED_DIR / "manifest.json"
-GAME_MANIFEST_PATH = GAME_DIR / "game_manifest.json"
 
 # Working resolution: long side of every derived image. All downstream
 # coordinates (features, polygons, clicks, live-compute regions) live in this space.

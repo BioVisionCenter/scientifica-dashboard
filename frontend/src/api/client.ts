@@ -1,4 +1,4 @@
-import type { Cell, Entry, FeaturesFile, GameImage, Manifest, RevealPayload, Scene, ThemeMode } from './types'
+import type { Cell, Entry, FeaturesFile, GameRound, Manifest, RevealPayload, Scene, ThemeMode } from './types'
 import type { TvLang } from '../copy'
 
 async function json<T>(res: Response): Promise<T> {
@@ -10,7 +10,16 @@ export const api = {
   manifest: () => fetch('/api/manifest').then((r) => json<Manifest>(r)),
   features: (url: string) => fetch(url).then((r) => json<FeaturesFile>(r)),
 
-  gameImages: () => fetch('/api/game/images').then((r) => json<GameImage[]>(r)),
+  gameRound: () => fetch('/api/game/round').then((r) => json<GameRound>(r)),
+  setRound: (image_id: string) =>
+    fetch('/api/game/round', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_id }),
+    }).then((r) => json<GameRound>(r)),
+  startRound: () => fetch('/api/game/round/start', { method: 'POST' }).then((r) => json<GameRound>(r)),
+  stopRound: () => fetch('/api/game/round/stop', { method: 'POST' }).then((r) => json<GameRound>(r)),
+  clearRound: () => fetch('/api/game/round/clear', { method: 'POST' }).then((r) => json<GameRound>(r)),
   entries: (limit?: number) =>
     fetch(`/api/game/entries${limit ? `?limit=${limit}` : ''}`).then((r) => json<Entry[]>(r)),
   addEntry: (body: {

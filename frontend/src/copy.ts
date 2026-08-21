@@ -130,10 +130,10 @@ export const copy = {
       fr: 'Comment fonctionne le jeu',
     },
     step1: {
-      de: 'Zähle die Zellen auf dem gedruckten Bild',
-      en: 'Count the cells on the printed image',
-      it: 'Conta le cellule sull’immagine stampata',
-      fr: 'Compte les cellules sur l’image imprimée',
+      de: 'Zähle die Zellen auf dem Bildschirm',
+      en: 'Count the cells on the screen',
+      it: 'Conta le cellule sullo schermo',
+      fr: 'Compte les cellules à l’écran',
     },
     step2: { de: 'Wir stoppen die Zeit', en: 'We time you', it: 'Cronometriamo il tempo', fr: 'Nous chronométrons' },
     step3: {
@@ -141,6 +141,33 @@ export const copy = {
       en: 'Score = accuracy × speed',
       it: 'Punteggio = precisione × velocità',
       fr: 'Score = précision × vitesse',
+    },
+  },
+
+  game: {
+    heading: {
+      de: 'Zähl die Zellen!',
+      en: 'Count the cells!',
+      it: 'Conta le cellule!',
+      fr: 'Compte les cellules !',
+    },
+    getReady: {
+      de: 'Mach dich bereit …',
+      en: 'Get ready…',
+      it: 'Preparati…',
+      fr: 'Prépare-toi…',
+    },
+    counting: {
+      de: 'Die Zeit läuft',
+      en: 'The clock is running',
+      it: 'Il tempo scorre',
+      fr: 'Le chrono tourne',
+    },
+    stopped: {
+      de: 'Zeit gestoppt',
+      en: 'Time stopped',
+      it: 'Tempo fermato',
+      fr: 'Chrono arrêté',
     },
   },
 

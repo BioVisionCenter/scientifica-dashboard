@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Entry, ExploreState, RevealPayload, Scene, ThemeMode } from '../api/types'
+import type { Entry, ExploreState, GameRound, RevealPayload, Scene, ThemeMode } from '../api/types'
 import { SINGLE_LANGS, type DisplayLang, type TvLang } from '../copy'
 
 type ExploreSyncState = Partial<ExploreState>
@@ -15,6 +15,7 @@ interface AppState {
   reveal: RevealPayload | null
   exploreSync: ExploreSyncState | null
   jobStage: { jobId: string; stage: string } | null
+  round: GameRound | null
 
   setConnected: (v: boolean) => void
   setScene: (scene: Scene, payload?: Record<string, unknown>) => void
@@ -25,6 +26,7 @@ interface AppState {
   setReveal: (r: RevealPayload | null) => void
   setExploreSync: (s: ExploreSyncState) => void
   setJobStage: (s: { jobId: string; stage: string } | null) => void
+  setRound: (round: GameRound | null) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -38,6 +40,7 @@ export const useAppStore = create<AppState>((set) => ({
   reveal: null,
   exploreSync: null,
   jobStage: null,
+  round: null,
 
   setConnected: (connected) => set({ connected }),
   setScene: (scene, scenePayload = {}) => set({ scene, scenePayload }),
@@ -53,6 +56,7 @@ export const useAppStore = create<AppState>((set) => ({
       JSON.stringify(s.exploreSync) === JSON.stringify(exploreSync) ? {} : { exploreSync },
     ),
   setJobStage: (jobStage) => set({ jobStage }),
+  setRound: (round) => set({ round }),
 }))
 
 /** The language actually shown right now: resolves 'rotate' to the current

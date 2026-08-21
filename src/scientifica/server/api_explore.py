@@ -12,9 +12,16 @@ router = APIRouter(prefix="/api")
 
 _tv_state = {"scene": "idle", "payload": {}, "lang": "bi", "theme": "dark"}
 
-SCENES = ("idle", "explore", "leaderboard", "podium")
+SCENES = ("idle", "explore", "game", "leaderboard", "podium")
 LANGS = ("de", "en", "it", "fr", "bi", "rotate")
 THEMES = ("light", "dark")
+
+
+async def force_scene(scene: str, payload: dict | None = None) -> None:
+    """Server-initiated scene switch (game rounds, entry reveals)."""
+    _tv_state["scene"] = scene
+    _tv_state["payload"] = payload or {}
+    await hub.broadcast("scene:set", _tv_state)
 
 
 @router.get("/manifest")
