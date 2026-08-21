@@ -162,6 +162,8 @@ export function ImageStage(props: Props) {
 
   return (
     <div ref={containerRef} className="relative h-full w-full overflow-hidden" style={{ background: 'var(--ccc-stage)' }}>
+      {/* mirror mode uses per-gesture disables, NOT the global `disabled`
+          prop: that one also silently no-ops setTransform, freezing the TV */}
       {fitScale !== null && (
         <TransformWrapper
           key={props.image.id}
@@ -171,7 +173,9 @@ export function ImageStage(props: Props) {
           initialPositionY={(containerRef.current!.clientHeight - props.image.height * fitScale) / 2}
           minScale={fitScale * 0.8}
           maxScale={8}
-          disabled={!props.interactive}
+          panning={{ disabled: !props.interactive }}
+          wheel={{ disabled: !props.interactive }}
+          pinch={{ disabled: !props.interactive }}
           doubleClick={{ disabled: true }}
           onTransform={handleTransform}
         >
