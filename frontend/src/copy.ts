@@ -57,12 +57,17 @@ export const copy = {
       it: `Campione attuale: ${name}`,
       fr: `Champion actuel : ${name}`,
     }),
-    segTeaser: (n: number): Bi => ({
-      de: `Die KI «cellpose» fand ${n.toLocaleString('de-CH')} Zellen — in Sekunden`,
-      en: `the AI "cellpose" found ${n.toLocaleString('en-US')} cells — in seconds`,
-      it: `L'IA «cellpose» ha trovato ${n.toLocaleString('it-CH')} cellule — in pochi secondi`,
-      fr: `L'IA « cellpose » a trouvé ${n.toLocaleString('fr-CH')} cellules — en quelques secondes`,
-    }),
+    segTeaser: (n: number, seconds: number | null): Bi => {
+      // fall back to the generic wording when no benchmarked time exists
+      const t = (locale: string) =>
+        seconds !== null ? `in ${seconds.toLocaleString(locale)} s` : null
+      return {
+        de: `Die KI «cellpose» fand ${n.toLocaleString('de-CH')} Zellen — ${t('de-CH') ?? 'in Sekunden'}`,
+        en: `the AI "cellpose" found ${n.toLocaleString('en-US')} cells — ${t('en-US') ?? 'in seconds'}`,
+        it: `L'IA «cellpose» ha trovato ${n.toLocaleString('it-CH')} cellule — ${t('it-CH') ?? 'in pochi secondi'}`,
+        fr: `L'IA « cellpose » a trouvé ${n.toLocaleString('fr-CH')} cellules — ${t('fr-CH') ?? 'en quelques secondes'}`,
+      }
+    },
     cellsLabel: { de: 'Zellen', en: 'cells', it: 'cellule', fr: 'cellules' },
   },
 

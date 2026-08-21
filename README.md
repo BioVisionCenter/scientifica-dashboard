@@ -9,14 +9,20 @@ leaderboard.
 ## One-time preparation
 
 ```bash
-uv sync                      # installs cellpose, fastapi, everything
-uv run scientifica-pipeline  # ~5 min: crop, enhance, segment, measure all images
+uv sync                                          # installs cellpose, fastapi, everything
+uv run scientifica-ingest "~/Downloads/Game Images"  # normalize the delivery into data/source/
+uv run scientifica-pipeline                      # derive channels, labels, features, benchmarks
 cd frontend && npm install && npm run build
 ```
 
-Raw images live in `scietifica_data/`. Derived assets land in `data/derived/`
-(gitignored). `scientifica-pipeline --segmenter otsu --diameter <px>` swaps the
-cellpose AI for classic Otsu thresholding.
+Source data lives in `data/source/` (all of `data/` is gitignored):
+`napari/` (2-color renders for the game/TV), `raw/roi_NN/` (per-channel uint16
+tiffs + curated `nuclei` labels for Explore), and `waldog/` (3-color renders for
+the waldog prints). The pipeline uses the provided nuclei labels — no offline
+segmentation — but times one cellpose run per image (`cellpose_seconds`, shown
+on the TV idle slides); `--skip-benchmark` keeps previous timings on re-runs.
+ROI display names come from `ROI_NAMES` in `src/scientifica/config.py`
+(transcribed from ROI_naming.xlsx).
 
 ## Running at the booth
 
@@ -54,6 +60,17 @@ the defaults (sigma 0.2, tau 6.0) a perfect 100/100 in 30 s scores 951.
 
 Entries are stored in `data/game.db` (SQLite) — delete the file to reset the
 leaderboard.
+
+## Where's Waldog prints
+
+```bash
+uv run waldog --seed 42      # one puzzle + solution pair per waldog ROI (1, 7, 13)
+```
+
+Hides the pet cutouts from `waldog/waldog-pets/` in the 3-color ROI renders and
+writes `waldog/output/wheres_waldog_roi_<n>{,_solution}.png` at print
+resolution. Knobs: `--rois`, `--pet-scale`, `--seed`; difficulty constants sit
+at the top of `waldog/src/waldog/main.py`.
 
 ## Development
 

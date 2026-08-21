@@ -13,9 +13,11 @@ dependencies = [
     "pydantic>=2",
     "pywavelets>=1.9.0",
     "scipy",
+    "tifffile",
 ]
 
 [project.scripts]
+scientifica-ingest = "scientifica.pipeline.ingest:main"
 scientifica-pipeline = "scientifica.pipeline.run:main"
 scientifica-server = "scientifica.server.main:run"
 

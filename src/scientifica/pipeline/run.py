@@ -1,11 +1,15 @@
-"""Offline pipeline: raw composites -> derived web assets + manifest.
+"""Offline pipeline: napari pngs + raw tiffs -> derived web assets + manifest.
 
-Usage: uv run scientifica-pipeline [--only 0,5] [--diameter 42] [--segmenter cellpose|otsu]
+Per ROI it derives: display.jpg (napari render, game/TV), per-channel grayscale
+PNGs for the client-side blending viewer, an enhanced composite, segmentation
+assets from the curated nuclei labels, per-cell features, and a timed cellpose
+benchmark (the labels themselves stay curated; only the seconds are kept).
+
+Usage: uv run scientifica-pipeline [--only 0,5] [--skip-benchmark]
 """
 
 import argparse
 import json
-import re
 import time
 from datetime import datetime, timezone
 
@@ -13,72 +17,107 @@ import numpy as np
 from PIL import Image
 
 from scientifica import config
-from scientifica.analysis import channels, enhance, measure, render, segment
-from scientifica.analysis.io import load_working_image
+from scientifica.analysis import channels, enhance, measure, render
+from scientifica.analysis.io import load_channel_tiff, load_display_png, load_labels_tiff
 
 
-def discover_raw() -> list[tuple[str, "config.Path"]]:
+def discover() -> list[tuple[str, "config.Path", "config.Path"]]:
+    """(image_id, napari_png, raw_dir) for every dashboard ROI."""
     items = []
-    for path in sorted(config.RAW_DIR.glob("scientifica_roi_*.png")):
-        idx = int(re.search(r"_(\d+)\.png$", path.name).group(1))
-        items.append((f"roi_{idx:02d}", idx, path))
-    items.sort(key=lambda t: t[1])
-    return [(rid, path) for rid, _, path in items]
+    for png in sorted(config.NAPARI_DIR.glob("roi_*.png")):
+        image_id = png.stem
+        raw_dir = config.RAW_TIFF_DIR / image_id
+        if not raw_dir.is_dir():
+            raise SystemExit(f"{image_id}: no raw tiffs in {raw_dir} (run scientifica-ingest)")
+        items.append((image_id, png, raw_dir))
+    return items
 
 
-def process_image(image_id: str, path, diameter: float | None, segmenter: str = "cellpose") -> dict:
+def process_image(image_id: str, png_path, raw_dir, skip_benchmark: bool, prev: dict | None) -> dict:
     t0 = time.time()
     is_hero = f"roi_{int(image_id.split('_')[1])}" in config.HERO_IDS
     long_side = config.HERO_LONG_SIDE if is_hero else config.WORKING_LONG_SIDE
-    loaded = load_working_image(path, long_side)
-    rgb = loaded.rgb
-    h, w = rgb.shape[:2]
-    print(f"[{image_id}] loaded {w}x{h} (scale {loaded.scale_from_raw:.3f})")
-
-    nuclei, membrane = channels.split_channels(rgb)
-
     out_dir = config.DERIVED_DIR / image_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Display assets: raw look + default-enhanced look
-    Image.fromarray(rgb).save(out_dir / "raw.jpg", quality=90)
+    # Display asset: the napari render, landscape, TV-sized
+    display = load_display_png(png_path, config.DISPLAY_LONG_SIDE)
+    Image.fromarray(display).save(out_dir / "display.jpg", quality=90)
+
+    # Channels: every tiff except the labels, landscape at working size
+    chans: dict[str, np.ndarray] = {}
+    ranges: dict[str, tuple[int, int]] = {}
+    rotated = False
+    for key in config.CHANNEL_DEFS:
+        path = raw_dir / f"{key}.tiff"
+        if not path.exists():
+            continue
+        chans[key], rotated, ranges[key] = load_channel_tiff(path, long_side)
+        Image.fromarray(chans[key]).save(out_dir / f"chan_{key}.png", optimize=True)
+    if "dapi" not in chans or "lamin_b1" not in chans:
+        raise SystemExit(f"{image_id}: missing dapi/lamin_b1 tiff in {raw_dir}")
+    h, w = chans["dapi"].shape
+    print(f"[{image_id}] channels {sorted(chans)} {w}x{h}{' (rotated)' if rotated else ''}")
+
+    # Enhanced composite, pixel-registered with the channels
     d = config.DEFAULTS
-    enh_n = enhance.enhance_channel(nuclei, d["denoise"]["method"], d["denoise"]["strength"], *d["stretch"])
-    enh_m = enhance.enhance_channel(membrane, d["denoise"]["method"], d["denoise"]["strength"], *d["stretch"])
-    enhanced_rgb = channels.composite(enh_n, enh_m, config.NUCLEI_HEX, config.MEMBRANE_HEX)
+    enhanced = {
+        key: enhance.enhance_channel(chan, d["denoise"]["method"], d["denoise"]["strength"], *d["stretch"])
+        for key, chan in chans.items()
+    }
+    enhanced_rgb = channels.composite(
+        [(enhanced[key], config.CHANNEL_DEFS[key][1]) for key in enhanced]
+    )
     Image.fromarray(enhanced_rgb).save(out_dir / "enhanced.jpg", quality=90)
 
-    # Segment on the enhanced channels (cleaner input, same params story)
-    if diameter is None:
-        print(f"[{image_id}] estimating diameter...")
-        diameter = segment.estimate_diameter(enh_n, enh_m)
-        print(f"[{image_id}] estimated diameter: {diameter:.1f}px")
-    seg_fn = segment.segment if segmenter == "cellpose" else segment.segment_otsu
-    labels = seg_fn(enh_n, enh_m, diameter=diameter, sensitivity=50)
+    # Segmentation assets from the curated labels
+    labels = load_labels_tiff(raw_dir / "nuclei.tiff", (h, w), rotated)
     n_cells = int(labels.max())
-    print(f"[{image_id}] segmented: {n_cells} cells ({time.time() - t0:.0f}s)")
-
     render.encode_labels_rgb(labels).save(out_dir / "labels_rgb.png", optimize=True)
     render.render_outlines(labels).save(out_dir / "outlines.png", optimize=True)
     render.render_mask(labels).save(out_dir / "mask.png", optimize=True)
     np.save(out_dir / "labels.npy", labels)
 
-    cells = measure.measure_cells(labels, nuclei, membrane)
+    cells = measure.measure_cells(labels, chans["dapi"], chans["lamin_b1"])
     with open(out_dir / "features.json", "w") as f:
         json.dump({"features": measure.FEATURE_KEYS, "cells": cells}, f)
+    diameter = round(float(np.median([c["equivalent_diameter"] for c in cells])), 1) if cells else None
+    print(f"[{image_id}] {n_cells} cells, median diameter {diameter}px ({time.time() - t0:.0f}s)")
+
+    # Timed cellpose run — result discarded, only the wall time is displayed
+    # on the TV idle slides ("found N cells — in X s").
+    if skip_benchmark:
+        cellpose_seconds = (prev or {}).get("cellpose_seconds")
+    else:
+        from scientifica.analysis import segment
+
+        tb = time.time()
+        segment.segment(enhanced["dapi"], None, diameter=diameter or 30.0, sensitivity=50)
+        cellpose_seconds = round(time.time() - tb, 1)
+        print(f"[{image_id}] cellpose benchmark: {cellpose_seconds}s")
 
     return {
         "id": image_id,
-        "title": "Tissue overview" if is_hero else f"Field {int(image_id.split('_')[1]) + 1}",
+        "title": config.ROI_NAMES.get(image_id, image_id),
         "width": w,
         "height": h,
         "hero": is_hero,
-        "scale_from_raw": round(loaded.scale_from_raw, 5),
-        "crop_offset_raw": list(loaded.crop_offset_raw),
+        "rotated": rotated,
         "cell_count": n_cells,
-        "diameter_px": round(diameter, 1),
+        "diameter_px": diameter,
+        "cellpose_seconds": cellpose_seconds,
+        "channels": [
+            {
+                "key": key,
+                "label": config.CHANNEL_DEFS[key][0],
+                "color": config.CHANNEL_DEFS[key][1],
+                "url": f"/assets/{image_id}/chan_{key}.png",
+                "raw_range": list(ranges[key]),
+            }
+            for key in chans
+        ],
         "assets": {
-            "raw": f"/assets/{image_id}/raw.jpg",
+            "display": f"/assets/{image_id}/display.jpg",
             "enhanced": f"/assets/{image_id}/enhanced.jpg",
             "outlines": f"/assets/{image_id}/outlines.png",
             "mask": f"/assets/{image_id}/mask.png",
@@ -91,16 +130,19 @@ def process_image(image_id: str, path, diameter: float | None, segmenter: str = 
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="comma-separated roi indices, e.g. 0,5")
-    parser.add_argument("--diameter", type=float, default=None, help="skip auto-estimation")
-    parser.add_argument("--segmenter", choices=["cellpose", "otsu"], default="cellpose")
+    parser.add_argument(
+        "--skip-benchmark",
+        action="store_true",
+        help="keep the previous cellpose_seconds instead of re-timing",
+    )
     args = parser.parse_args()
 
-    items = discover_raw()
+    items = discover()
     if args.only:
         wanted = {int(x) for x in args.only.split(",")}
-        items = [(rid, p) for rid, p in items if int(rid.split("_")[1]) in wanted]
+        items = [it for it in items if int(it[0].split("_")[1]) in wanted]
     if not items:
-        raise SystemExit("no raw images matched")
+        raise SystemExit("no source images matched")
 
     config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -109,28 +151,18 @@ def main() -> None:
     if config.MANIFEST_PATH.exists():
         try:
             with open(config.MANIFEST_PATH) as f:
-                prev = json.load(f)
-            existing = {img["id"]: img for img in prev.get("images", [])}
-            if args.diameter is None and prev.get("defaults", {}).get("diameter_px"):
-                args.diameter = prev["defaults"]["diameter_px"]
+                existing = {img["id"]: img for img in json.load(f).get("images", [])}
         except json.JSONDecodeError:
             print("warning: existing manifest is corrupt, rebuilding from scratch")
 
-    diameter = args.diameter
-    if args.segmenter == "otsu" and diameter is None:
-        raise SystemExit("otsu needs --diameter (auto-estimation uses cellpose)")
-    for image_id, path in items:
-        is_hero = f"roi_{int(image_id.split('_')[1])}" in config.HERO_IDS
-        # hero overview is a different magnification: always estimate its own
-        # diameter (cellpose only — otsu runs keep the user-given diameter)
-        estimate_hero = is_hero and args.segmenter == "cellpose"
-        entry = process_image(image_id, path, None if estimate_hero else diameter, args.segmenter)
-        if diameter is None and not is_hero:
-            diameter = entry["diameter_px"]  # estimate once, pin for the rest
-        existing[image_id] = entry
+    for image_id, png, raw_dir in items:
+        existing[image_id] = process_image(
+            image_id, png, raw_dir, args.skip_benchmark, existing.get(image_id)
+        )
 
     defaults = dict(config.DEFAULTS)
-    defaults["diameter_px"] = diameter
+    diameters = [e["diameter_px"] for e in existing.values() if not e["hero"] and e["diameter_px"]]
+    defaults["diameter_px"] = round(float(np.median(diameters)), 1) if diameters else 30.0
     manifest = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "defaults": defaults,
@@ -138,7 +170,7 @@ def main() -> None:
     }
     with open(config.MANIFEST_PATH, "w") as f:
         json.dump(manifest, f, indent=1)
-    print(f"manifest written: {len(existing)} images, default diameter {diameter:.1f}px")
+    print(f"manifest written: {len(existing)} images, default diameter {defaults['diameter_px']}px")
 
 
 if __name__ == "__main__":

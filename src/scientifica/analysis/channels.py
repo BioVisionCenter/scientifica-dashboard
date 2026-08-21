@@ -1,9 +1,4 @@
-"""Channel extraction from the cyan/magenta RGB composite.
-
-The composites render nuclei in cyan (G+B) and membranes in magenta (R+B),
-so G is the unique nuclei signal, R the unique membrane signal, and B is the
-shared component we ignore.
-"""
+"""Compositing grayscale channels into an RGB display image."""
 
 import numpy as np
 
@@ -13,15 +8,11 @@ def hex_to_rgb01(hex_color: str) -> np.ndarray:
     return np.array([int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4)], dtype=np.float32)
 
 
-def split_channels(rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return (nuclei, membrane) uint8 grayscale channels."""
-    return rgb[..., 1].copy(), rgb[..., 0].copy()
-
-
-def composite(nuclei: np.ndarray, membrane: np.ndarray, nuclei_hex: str, membrane_hex: str) -> np.ndarray:
-    """Recomposite two grayscale channels (uint8 or float01) into an RGB uint8 image."""
-    out = np.zeros((*nuclei.shape, 3), dtype=np.float32)
-    for chan, hex_color in ((nuclei, nuclei_hex), (membrane, membrane_hex)):
+def composite(channels: list[tuple[np.ndarray, str]]) -> np.ndarray:
+    """Additively blend (grayscale uint8-or-float01, hex color) pairs into RGB uint8."""
+    first = channels[0][0]
+    out = np.zeros((*first.shape, 3), dtype=np.float32)
+    for chan, hex_color in channels:
         f = chan.astype(np.float32)
         if chan.dtype == np.uint8:
             f /= 255.0

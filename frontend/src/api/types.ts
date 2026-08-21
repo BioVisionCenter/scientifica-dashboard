@@ -23,16 +23,35 @@ export interface FeaturesFile {
   cells: Cell[]
 }
 
+export interface ChannelMeta {
+  key: string
+  label: string
+  color: string
+  url: string
+  raw_range?: [number, number]
+}
+
+/** Per-channel viewer settings; min/max window on the 8-bit channel PNG. */
+export interface ChannelSettings {
+  visible: boolean
+  color: string
+  min: number
+  max: number
+}
+
 export interface ManifestImage {
   id: string
   title: string
   width: number
   height: number
   hero: boolean
+  rotated: boolean
   cell_count: number
   diameter_px: number
+  cellpose_seconds: number | null
+  channels: ChannelMeta[]
   assets: {
-    raw: string
+    display: string
     enhanced: string
     outlines: string
     mask: string
@@ -128,6 +147,7 @@ export interface ExploreState {
   selectedLabel: number | null
   hoveredLabel: number | null
   params: ExploreParams
+  channels: Record<string, ChannelSettings>
   busy: boolean
   liveResult: LiveResult | null
   view: StageView | null

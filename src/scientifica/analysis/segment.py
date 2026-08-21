@@ -26,32 +26,29 @@ def get_model():
 
 def warmup() -> None:
     """Load the model and run a dummy inference so the first real request is fast."""
-    dummy = np.zeros((2, 128, 128), dtype=np.float32)
-    segment(dummy[0], dummy[1], diameter=30.0, sensitivity=50)
-
-
-def estimate_diameter(nuclei: np.ndarray, membrane: np.ndarray) -> float:
-    from cellpose import models
-
-    size_model = models.Cellpose(model_type="cyto3", gpu=True)
-    img = np.stack([membrane, nuclei])
-    diam, _ = size_model.sz.eval(img, channels=[1, 2], channel_axis=0)
-    return float(diam)
+    dummy = np.zeros((128, 128), dtype=np.float32)
+    segment(dummy, None, diameter=30.0, sensitivity=50)
 
 
 def segment(
     nuclei: np.ndarray,
-    membrane: np.ndarray,
+    membrane: np.ndarray | None,
     diameter: float,
     sensitivity: float = 50,
 ) -> np.ndarray:
-    """Run cellpose on (membrane=cyto, nuclei=nuclear) channels. Returns int32 labels."""
+    """Run cellpose on the nuclei channel (grayscale; membrane optionally added
+    as the cyto channel). Returns int32 labels."""
     model = get_model()
-    img = np.stack([membrane.astype(np.float32), nuclei.astype(np.float32)])
+    if membrane is None:
+        img = nuclei.astype(np.float32)
+        chans = [0, 0]  # grayscale
+    else:
+        img = np.stack([membrane.astype(np.float32), nuclei.astype(np.float32)])
+        chans = [1, 2]  # cyto = channel 1 (membrane), nucleus = channel 2 (nuclei)
     masks, _, _ = model.eval(
         img,
-        channels=[1, 2],  # cyto = channel 1 (membrane), nucleus = channel 2 (nuclei)
-        channel_axis=0,
+        channels=chans,
+        channel_axis=0 if membrane is not None else None,
         diameter=diameter,
         cellprob_threshold=sensitivity_to_cellprob(sensitivity),
         flow_threshold=0.4,
@@ -70,7 +67,7 @@ def sensitivity_to_otsu_scale(sensitivity: float) -> float:
 
 def segment_otsu(
     nuclei: np.ndarray,
-    membrane: np.ndarray,
+    membrane: np.ndarray | None,
     diameter: float,
     sensitivity: float = 50,
 ) -> np.ndarray:

@@ -77,7 +77,7 @@ async def set_round(body: RoundBody):
         img = _manifest_images().get(body.image_id)
         if img is None:
             raise HTTPException(404, "unknown image")
-        image_url = img["assets"]["enhanced"]
+        image_url = img["assets"].get("display") or img["assets"]["enhanced"]
     _round.update(
         round_id=uuid.uuid4().hex[:8],
         image_id=body.image_id,

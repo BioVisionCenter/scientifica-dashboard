@@ -9,8 +9,8 @@ FEATURE_KEYS = [
     {"key": "perimeter", "label": "Perimeter (px)"},
     {"key": "eccentricity", "label": "Eccentricity"},
     {"key": "solidity", "label": "Solidity"},
-    {"key": "mean_nuclei", "label": "Nuclei intensity"},
-    {"key": "mean_membrane", "label": "Membrane intensity"},
+    {"key": "mean_nuclei", "label": "DAPI intensity"},
+    {"key": "mean_membrane", "label": "Lamin B1 intensity"},
 ]
 
 

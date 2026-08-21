@@ -182,8 +182,11 @@ function SegmentSlide({ slide }: { slide: Slide }) {
         </span>
       </div>
       <CaptionBar>
-        <BiText text={copy.idle.segTeaser(slide.image.cell_count)} size={26} align="left" />
-        <span className="eyebrow" style={{ fontSize: 14 }}>{slide.image.title}</span>
+        <BiText
+          text={copy.idle.segTeaser(slide.image.cell_count, slide.image.cellpose_seconds)}
+          size={26}
+          align="left"
+        />
       </CaptionBar>
     </>
   )

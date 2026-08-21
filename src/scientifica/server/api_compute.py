@@ -10,7 +10,7 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from scientifica import config
-from scientifica.analysis import channels, enhance, measure, render, segment
+from scientifica.analysis import enhance, measure, render, segment
 from scientifica.server.ws import hub
 
 router = APIRouter(prefix="/api/compute")
@@ -34,28 +34,33 @@ class EnhanceBody(BaseModel):
     stretch: tuple[float, float] = (1.0, 99.5)
 
 
-def _load_region(image_id: str, region: Region | None) -> np.ndarray:
-    path = config.DERIVED_DIR / image_id / "raw.jpg"
-    if not path.exists():
-        raise HTTPException(404, f"unknown image {image_id}")
-    img = Image.open(path)
-    if region is not None:
-        max_side = config.LIVE_REGION_MAX
-        if region.width > max_side or region.height > max_side:
-            raise HTTPException(422, f"region larger than {max_side}px cap")
-        img = img.crop((region.x, region.y, region.x + region.width, region.y + region.height))
-    else:
-        if max(img.size) > config.LIVE_REGION_MAX:
-            raise HTTPException(422, "full image exceeds live cap; send a region")
-    return np.asarray(img.convert("RGB"))
+def _load_region(image_id: str, region: Region | None) -> tuple[np.ndarray, np.ndarray]:
+    """(dapi, lamin_b1) grayscale uint8 crops in working-space coordinates."""
+    out = []
+    for key in ("dapi", "lamin_b1"):
+        path = config.DERIVED_DIR / image_id / f"chan_{key}.png"
+        if not path.exists():
+            raise HTTPException(404, f"unknown image {image_id}")
+        img = Image.open(path)
+        if region is not None:
+            max_side = config.LIVE_REGION_MAX
+            if region.width > max_side or region.height > max_side:
+                raise HTTPException(422, f"region larger than {max_side}px cap")
+            img = img.crop((region.x, region.y, region.x + region.width, region.y + region.height))
+        else:
+            if max(img.size) > config.LIVE_REGION_MAX:
+                raise HTTPException(422, "full image exceeds live cap; send a region")
+        out.append(np.asarray(img.convert("L")))
+    return out[0], out[1]
 
 
-def _enhance_channels(rgb: np.ndarray, method: str, strength: float, stretch: tuple[float, float]):
+def _enhance_channels(
+    dapi: np.ndarray, lamin: np.ndarray, method: str, strength: float, stretch: tuple[float, float]
+):
     if method not in enhance.DENOISE_METHODS:
         raise HTTPException(422, f"method must be one of {enhance.DENOISE_METHODS}")
-    nuclei, membrane = channels.split_channels(rgb)
-    enh_n = enhance.enhance_channel(nuclei, method, strength, *stretch)
-    enh_m = enhance.enhance_channel(membrane, method, strength, *stretch)
+    enh_n = enhance.enhance_channel(dapi, method, strength, *stretch)
+    enh_m = enhance.enhance_channel(lamin, method, strength, *stretch)
     return enh_n, enh_m
 
 
@@ -96,15 +101,16 @@ async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
         await hub.broadcast("job:progress", {"job_id": job_id, "stage": stage})
 
     try:
-        rgb = _load_region(body.image_id, body.region)
+        dapi, lamin = _load_region(body.image_id, body.region)
         await progress("enhancing")
         enh_n, enh_m = await asyncio.to_thread(
-            _enhance_channels, rgb, body.method, body.strength, body.stretch
+            _enhance_channels, dapi, lamin, body.method, body.strength, body.stretch
         )
         await progress("segmenting")
+        # live segmentation runs on the DAPI channel alone (nuclei labels)
         seg_fn = segment.segment if body.segmenter == "cellpose" else segment.segment_otsu
         labels = await asyncio.to_thread(
-            seg_fn, enh_n, enh_m, body.diameter_px, body.sensitivity
+            seg_fn, enh_n, None, body.diameter_px, body.sensitivity
         )
         await progress("measuring")
         cells = await asyncio.to_thread(measure.measure_cells, labels, enh_n, enh_m)

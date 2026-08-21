@@ -130,7 +130,8 @@ function GameTab() {
   const [customCount, setCustomCount] = useState('')
   const [name, setName] = useState('')
   const [guess, setGuess] = useState('')
-  const [seconds, setSeconds] = useState(0)
+  const [minStr, setMinStr] = useState('')
+  const [secStr, setSecStr] = useState('')
   const [lastResult, setLastResult] = useState<string | null>(null)
   const [lastEntryId, setLastEntryId] = useState<number | null>(null)
   const [dupWarning, setDupWarning] = useState(false)
@@ -144,9 +145,13 @@ function GameTab() {
     })
   }, [])
 
-  // when the round stops, its authoritative time prefills the (editable) field
+  // when the round stops, its authoritative time prefills the (editable) fields
   useEffect(() => {
-    if (round?.status === 'stopped' && round.elapsed != null) setSeconds(round.elapsed)
+    if (round?.status === 'stopped' && round.elapsed != null) {
+      const m = Math.floor(round.elapsed / 60)
+      setMinStr(m > 0 ? String(m) : '')
+      setSecStr((Math.round((round.elapsed - m * 60) * 10) / 10).toString())
+    }
   }, [round?.status, round?.round_id, round?.elapsed])
 
   // re-render every 30s so relative times stay fresh
@@ -183,8 +188,10 @@ function GameTab() {
   const stopRound = () => api.stopRound().catch(() => {})
   const clearRound = () => api.clearRound().catch(() => {})
 
+  const totalSeconds = (parseInt(minStr, 10) || 0) * 60 + (parseFloat(secStr) || 0)
+
   const submit = async () => {
-    if (!name.trim() || !guess || seconds <= 0) return
+    if (!name.trim() || !guess || totalSeconds <= 0) return
     if (isCustom && !(parseInt(customCount, 10) > 0)) return
     const isDuplicate = entries.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())
     if (isDuplicate && !dupWarning) {
@@ -196,7 +203,7 @@ function GameTab() {
       name: name.trim(),
       game_image_id: imageId,
       guess: parseInt(guess, 10),
-      time_seconds: Math.round(seconds * 10) / 10,
+      time_seconds: Math.round(totalSeconds * 10) / 10,
       ...(isCustom ? { true_count: parseInt(customCount, 10) } : {}),
     })
     setLastEntryId(res.entry.id)
@@ -205,7 +212,8 @@ function GameTab() {
     )
     setName('')
     setGuess('')
-    setSeconds(0)
+    setMinStr('')
+    setSecStr('')
   }
 
   const removeEntry = async (id: number, entryName: string) => {
@@ -303,17 +311,31 @@ function GameTab() {
                 setDupWarning(false)
               }}
             />
-            <label className="flex w-44 flex-col gap-1">
-              <span className="eyebrow">time (seconds)</span>
+            <label className="flex w-24 flex-col gap-1">
+              <span className="eyebrow">min</span>
+              <input
+                className="input font-mono"
+                style={{ fontSize: 22 }}
+                type="number"
+                min={0}
+                step={1}
+                value={minStr}
+                placeholder="0"
+                onChange={(e) => setMinStr(e.target.value)}
+                disabled={running}
+              />
+            </label>
+            <label className="flex w-32 flex-col gap-1">
+              <span className="eyebrow">sec</span>
               <input
                 className="input font-mono"
                 style={{ fontSize: 22 }}
                 type="number"
                 min={0}
                 step={0.1}
-                value={seconds ? seconds.toFixed(1) : ''}
-                placeholder="from the round"
-                onChange={(e) => setSeconds(parseFloat(e.target.value) || 0)}
+                value={secStr}
+                placeholder="0.0"
+                onChange={(e) => setSecStr(e.target.value)}
                 disabled={running}
               />
             </label>
@@ -331,7 +353,7 @@ function GameTab() {
             <button
               className="btn btn-primary self-end"
               style={{ padding: '13px 22px' }}
-              disabled={running || !name.trim() || !guess || seconds <= 0 || (isCustom && !(parseInt(customCount, 10) > 0))}
+              disabled={running || !name.trim() || !guess || totalSeconds <= 0 || (isCustom && !(parseInt(customCount, 10) > 0))}
               onClick={submit}
             >
               Submit
@@ -360,7 +382,7 @@ function GameTab() {
 
         {selectedImage && (
           <div className="card flex items-center gap-4 p-4">
-            <img src={selectedImage.assets.enhanced} alt="" className="h-36 w-36 rounded-lg object-cover" />
+            <img src={selectedImage.assets.display} alt="" className="h-36 w-36 rounded-lg object-cover" />
             <div className="flex flex-col gap-1.5">
               <span className="eyebrow">round image</span>
               <p className="text-sm" style={{ color: 'var(--ngio-muted)', maxWidth: '38ch' }}>

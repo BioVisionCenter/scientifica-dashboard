@@ -3,6 +3,7 @@ import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type {
   Cell,
+  ChannelSettings,
   ExploreParams,
   ExploreState,
   FeaturesFile,
@@ -15,9 +16,10 @@ import type {
 import { ImageStage, type OverlayMode, type Region, type StageApi } from '../components/viewer/ImageStage'
 import { FeatureScatter } from '../components/scatter/FeatureScatter'
 import { ParamPanel } from '../components/params/ParamPanel'
+import { ChannelPanel, defaultChannelSettings } from '../components/params/ChannelPanel'
 
 const STEPS: { key: PipelineStep; label: string; blurb: string }[] = [
-  { key: 'raw', label: '1 · Raw', blurb: 'Straight from the microscope' },
+  { key: 'raw', label: '1 · Raw', blurb: 'Mix the microscope’s channels' },
   { key: 'segmented', label: '2 · Segment', blurb: 'AI finds every cell (cellpose)' },
   { key: 'measured', label: '3 · Measure', blurb: 'Numbers for every single cell' },
 ]
@@ -42,6 +44,7 @@ function defaultState(m: Manifest): ExploreState {
     selectedLabel: null,
     hoveredLabel: null,
     params: paramsFrom(m),
+    channels: defaultChannelSettings(m.images[0]?.channels ?? []),
     busy: false,
     liveResult: null,
     view: null,
@@ -67,6 +70,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
   const [selectedLabel, setSelectedLabel] = useState<number | null>(null)
   const [hoveredLabel, setHoveredLabel] = useState<number | null>(null)
   const [params, setParams] = useState<ExploreParams | null>(null)
+  const [channelSettings, setChannelSettings] = useState<Record<string, ChannelSettings>>({})
   const [busy, setBusy] = useState(false)
   const [liveResult, setLiveResult] = useState<LiveResult | null>(null)
   const [view, setView] = useState<StageView | null>(null)
@@ -100,13 +104,14 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       selectedLabel,
       hoveredLabel,
       params,
+      channels: channelSettings,
       busy,
       liveResult,
       view,
     }
   }, [
     manifest, mirror, sync, imageId, step, overlay, xKey, yKey,
-    selectedLabel, hoveredLabel, params, busy, liveResult, view,
+    selectedLabel, hoveredLabel, params, channelSettings, busy, liveResult, view,
   ])
 
   const image: ManifestImage | null = useMemo(
@@ -124,6 +129,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       setLiveResult(null)
       setViewport(null)
       setView(null)
+      if (image) setChannelSettings(defaultChannelSettings(image.channels))
       if (image?.hero) setParams((p) => (p ? { ...p, diameter_px: Math.round(image.diameter_px) } : p))
     }
   }, [image?.id])
@@ -274,6 +280,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
         step={S.step}
         overlay={S.overlay}
         cells={scatterCells}
+        channelSettings={S.channels}
         selectedLabel={S.selectedLabel}
         hoveredLabel={S.hoveredLabel}
         liveResult={S.liveResult}
@@ -306,6 +313,14 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       )}
       {S.busy && showsSegmentation && <JobOverlay stage={jobStage?.stage ?? null} />}
     </div>
+  )
+
+  const channelCard = S.step === 'raw' && image.channels.length > 0 && (
+    <ChannelPanel
+      channels={image.channels}
+      settings={S.channels}
+      onChange={setChannelSettings}
+    />
   )
 
   const paramCard = (
@@ -416,7 +431,10 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[1fr_360px] gap-3">
           {viewerCard}
-          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">{paramCard}</div>
+          <div className="flex min-h-0 flex-col gap-3 overflow-y-auto">
+            {channelCard}
+            {paramCard}
+          </div>
         </div>
       )}
     </div>

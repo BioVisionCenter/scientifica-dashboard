@@ -1,10 +1,9 @@
 [project]
 name = "waldog"
 version = "0.1.0"
-description = "Where's Waldog — hide pet cutouts in a rendered OME-Zarr microscopy image"
+description = "Where's Waldog — hide pet cutouts in the Scientifica ROI renders"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "ngio",
     "numpy",
     "pillow",
     "scipy",

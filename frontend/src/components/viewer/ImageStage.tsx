@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import type { ReactZoomPanPinchRef } from 'react-zoom-pan-pinch'
-import type { Cell, LiveResult, ManifestImage, PipelineStep, StageView } from '../../api/types'
+import type { Cell, ChannelSettings, LiveResult, ManifestImage, PipelineStep, StageView } from '../../api/types'
+import { ChannelCanvas } from './ChannelCanvas'
 import { useLabelLookup } from './useLabelLookup'
 
 export type OverlayMode = 'none' | 'outlines' | 'mask'
@@ -22,6 +23,7 @@ interface Props {
   step: PipelineStep
   overlay: OverlayMode
   cells: Cell[]
+  channelSettings?: Record<string, ChannelSettings> | null
   selectedLabel: number | null
   hoveredLabel: number | null
   liveResult?: LiveResult | null
@@ -218,7 +220,6 @@ function StageContent(props: Props) {
     [lookup, props.onCellClick, image.width, image.height],
   )
 
-  const showEnhanced = step !== 'raw'
   const overlayUrl =
     (step === 'segmented' || step === 'measured') && overlay !== 'none'
       ? overlay === 'outlines'
@@ -236,15 +237,21 @@ function StageContent(props: Props) {
           style={{ width: image.width, height: image.height, position: 'relative' }}
           onClick={handleClick}
         >
-          <img src={image.assets.raw} width={image.width} height={image.height} alt="" draggable={false} />
-          {showEnhanced && (
+          {step === 'raw' ? (
+            // raw step: the visitor mixes the microscope's channels themselves
+            <ChannelCanvas
+              channels={image.channels}
+              settings={props.channelSettings ?? {}}
+              width={image.width}
+              height={image.height}
+            />
+          ) : (
             <img
               src={image.assets.enhanced}
               width={image.width}
               height={image.height}
               alt=""
               draggable={false}
-              className="absolute inset-0"
             />
           )}
           {overlayUrl && !props.liveResult && (

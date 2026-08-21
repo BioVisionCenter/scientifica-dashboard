@@ -1,6 +1,4 @@
-data/derived/
-data/*.db
-scietifica_data/
+data/
 node_modules/
 .venv/
 __pycache__/

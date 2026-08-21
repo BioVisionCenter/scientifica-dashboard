@@ -1,21 +1,18 @@
-"""Loading, black-border autocrop, and downscaling to working resolution."""
+"""Loading: napari display pngs and raw channel/label tiffs.
 
-from dataclasses import dataclass
+Everything displayed is landscape: content is rotated 90° (always the same
+`np.rot90(a, k=-1)`) whenever it is taller than wide. The rotation decision is
+made ONCE per ROI from the channel tiff shape and shared with the label loader
+so channels, labels, features and polygons stay in one coordinate frame.
+"""
 
 import numpy as np
+import tifffile
 from PIL import Image
 
 from scientifica import config
 
 Image.MAX_IMAGE_PIXELS = None
-
-
-@dataclass
-class LoadedImage:
-    rgb: np.ndarray  # uint8 (H, W, 3), working resolution
-    crop_offset_raw: tuple[int, int]  # (x0, y0) of the crop in raw coords
-    scale_from_raw: float  # working px per raw px (< 1)
-    raw_size: tuple[int, int]  # (width, height) before crop
 
 
 def _largest_run(condition: np.ndarray, max_gap: int = 32) -> np.ndarray:
@@ -47,26 +44,74 @@ def autocrop_bbox(rgb: np.ndarray) -> tuple[int, int, int, int]:
     return x0, y0, x1, y1
 
 
-def load_working_image(path, long_side: int) -> LoadedImage:
-    """Load a raw composite PNG: drop alpha, autocrop black border, downscale."""
+def to_landscape(a: np.ndarray) -> np.ndarray:
+    """Rotate 90° so width >= height. Every rotation in the project uses k=-1."""
+    return np.rot90(a, k=-1) if a.shape[0] > a.shape[1] else a
+
+
+def load_display_png(path, long_side: int) -> np.ndarray:
+    """Napari render: drop alpha, autocrop black padding, landscape, downscale."""
     img = Image.open(path)
-    raw_size = img.size
     if img.mode != "RGB":
         img = img.convert("RGB")
     rgb = np.asarray(img)
     x0, y0, x1, y1 = autocrop_bbox(rgb)
-    cropped = Image.fromarray(rgb[y0:y1, x0:x1])
-    del rgb, img
-
-    w, h = cropped.size
-    scale = min(1.0, long_side / max(w, h))
+    rgb = to_landscape(rgb[y0:y1, x0:x1])
+    h, w = rgb.shape[:2]
+    scale = min(1.0, long_side / w)
+    out = Image.fromarray(rgb)
     if scale < 1.0:
-        cropped = cropped.resize(
-            (round(w * scale), round(h * scale)), Image.Resampling.LANCZOS
-        )
-    return LoadedImage(
-        rgb=np.asarray(cropped),
-        crop_offset_raw=(x0, y0),
-        scale_from_raw=scale,
-        raw_size=raw_size,
-    )
+        out = out.resize((round(w * scale), round(h * scale)), Image.Resampling.LANCZOS)
+    return np.asarray(out)
+
+
+def load_channel_tiff(path, long_side: int) -> tuple[np.ndarray, bool, tuple[int, int]]:
+    """Raw uint16 channel -> (uint8 working-size grayscale, rotated, raw (lo, hi)).
+
+    The percentile window config.CHANNEL_STRETCH is baked into the 8-bit output;
+    the original intensity bounds of that window are returned as raw_range.
+    """
+    arr = tifffile.imread(path)
+    # Huge inputs (the hero overview): halve by striding before any float work
+    while max(arr.shape) > 4 * long_side:
+        arr = arr[::2, ::2]
+    rotated = arr.shape[0] > arr.shape[1]
+    if rotated:
+        arr = np.rot90(arr, k=-1)
+    sample = arr[::4, ::4] if max(arr.shape) > 8192 else arr
+    nz = sample[sample > 0]
+    if nz.size == 0:
+        nz = sample.reshape(-1)
+    lo, hi = np.percentile(nz, config.CHANNEL_STRETCH)
+    if hi <= lo:
+        hi = lo + 1
+    u8 = (np.clip((arr.astype(np.float32) - lo) / (hi - lo), 0.0, 1.0) * 255).astype(np.uint8)
+
+    h, w = u8.shape
+    scale = min(1.0, long_side / w)
+    img = Image.fromarray(u8)
+    if scale < 1.0:
+        img = img.resize((round(w * scale), round(h * scale)), Image.Resampling.LANCZOS)
+    return np.asarray(img), rotated, (int(lo), int(hi))
+
+
+def load_labels_tiff(path, target_hw: tuple[int, int], rotate: bool) -> np.ndarray:
+    """Curated nuclei labels -> int32 at exactly target_hw, ids relabeled 1..N.
+
+    `rotate` comes from the ROI's channel tiff — never decided here — so labels
+    land in the same landscape frame as the channels.
+    """
+    from skimage.segmentation import relabel_sequential
+
+    arr = tifffile.imread(path).astype(np.int32)
+    if rotate:
+        arr = np.rot90(arr, k=-1)
+    th, tw = target_hw
+    # NEAREST also absorbs the ~1/4-scale label crops (B03 ROIs) and the
+    # non-integer factors that come with them.
+    while arr.shape[1] > 2 * tw:
+        arr = arr[::2, ::2]
+    if arr.shape != (th, tw):
+        img = Image.fromarray(arr, mode="I").resize((tw, th), Image.Resampling.NEAREST)
+        arr = np.array(img, dtype=np.int32)  # writable copy (PIL buffers are read-only)
+    return relabel_sequential(np.ascontiguousarray(arr))[0].astype(np.int32)

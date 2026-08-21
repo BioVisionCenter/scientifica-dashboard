@@ -66,8 +66,8 @@ export function ParamPanel(props: Props) {
 
       {step === 'raw' ? (
         <p className="text-[13px]" style={{ color: 'var(--ngio-muted)' }}>
-          This is the image straight from the microscope. Move to Segment to let the
-          AI find every cell — and tune its parameters yourself.
+          These are the real microscope channels — toggle them and tune colors and
+          contrast above. Move to Segment to let the AI find every cell.
         </p>
       ) : (
         <>
