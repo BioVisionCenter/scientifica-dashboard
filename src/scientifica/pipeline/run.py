@@ -1,6 +1,6 @@
 """Offline pipeline: raw composites -> derived web assets + manifest.
 
-Usage: uv run scientifica-pipeline [--only 0,5] [--diameter 42]
+Usage: uv run scientifica-pipeline [--only 0,5] [--diameter 42] [--segmenter cellpose|otsu]
 """
 
 import argparse
@@ -26,7 +26,7 @@ def discover_raw() -> list[tuple[str, "config.Path"]]:
     return [(rid, path) for rid, _, path in items]
 
 
-def process_image(image_id: str, path, diameter: float | None) -> dict:
+def process_image(image_id: str, path, diameter: float | None, segmenter: str = "cellpose") -> dict:
     t0 = time.time()
     is_hero = f"roi_{int(image_id.split('_')[1])}" in config.HERO_IDS
     long_side = config.HERO_LONG_SIDE if is_hero else config.WORKING_LONG_SIDE
@@ -53,14 +53,15 @@ def process_image(image_id: str, path, diameter: float | None) -> dict:
         print(f"[{image_id}] estimating diameter...")
         diameter = segment.estimate_diameter(enh_n, enh_m)
         print(f"[{image_id}] estimated diameter: {diameter:.1f}px")
-    labels = segment.segment(enh_n, enh_m, diameter=diameter, sensitivity=50)
+    seg_fn = segment.segment if segmenter == "cellpose" else segment.segment_otsu
+    labels = seg_fn(enh_n, enh_m, diameter=diameter, sensitivity=50)
     n_cells = int(labels.max())
     print(f"[{image_id}] segmented: {n_cells} cells ({time.time() - t0:.0f}s)")
 
     render.encode_labels_rgb(labels).save(out_dir / "labels_rgb.png", optimize=True)
     render.render_outlines(labels).save(out_dir / "outlines.png", optimize=True)
     render.render_mask(labels).save(out_dir / "mask.png", optimize=True)
-    np.save(out_dir / "labels.npy", labels)  # for game patch counting
+    np.save(out_dir / "labels.npy", labels)
 
     cells = measure.measure_cells(labels, nuclei, membrane)
     with open(out_dir / "features.json", "w") as f:
@@ -91,6 +92,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="comma-separated roi indices, e.g. 0,5")
     parser.add_argument("--diameter", type=float, default=None, help="skip auto-estimation")
+    parser.add_argument("--segmenter", choices=["cellpose", "otsu"], default="cellpose")
     args = parser.parse_args()
 
     items = discover_raw()
@@ -115,10 +117,14 @@ def main() -> None:
             print("warning: existing manifest is corrupt, rebuilding from scratch")
 
     diameter = args.diameter
+    if args.segmenter == "otsu" and diameter is None:
+        raise SystemExit("otsu needs --diameter (auto-estimation uses cellpose)")
     for image_id, path in items:
         is_hero = f"roi_{int(image_id.split('_')[1])}" in config.HERO_IDS
-        # hero overview is a different magnification: always estimate its own diameter
-        entry = process_image(image_id, path, None if is_hero else diameter)
+        # hero overview is a different magnification: always estimate its own
+        # diameter (cellpose only — otsu runs keep the user-given diameter)
+        estimate_hero = is_hero and args.segmenter == "cellpose"
+        entry = process_image(image_id, path, None if estimate_hero else diameter, args.segmenter)
         if diameter is None and not is_hero:
             diameter = entry["diameter_px"]  # estimate once, pin for the rest
         existing[image_id] = entry

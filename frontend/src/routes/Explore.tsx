@@ -28,6 +28,7 @@ function paramsFrom(m: Manifest): ExploreParams {
   return {
     diameter_px: Math.round(m.defaults.diameter_px),
     sensitivity: m.defaults.sensitivity,
+    segmenter: 'cellpose',
   }
 }
 
@@ -209,6 +210,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
         region,
         diameter_px: params.diameter_px,
         sensitivity: params.sensitivity,
+        segmenter: params.segmenter,
       })
       const poll = async () => {
         const status = await api.jobStatus(job_id)

@@ -71,6 +71,28 @@ export function ParamPanel(props: Props) {
         </p>
       ) : (
         <>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[12.5px]" style={{ color: 'var(--ngio-muted)' }}>
+              Method
+            </span>
+            <div className="flex gap-1.5">
+              {(
+                [
+                  { key: 'cellpose', label: 'AI (cellpose)' },
+                  { key: 'otsu', label: 'Classic (Otsu)' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.key}
+                  className={`btn flex-1 ${params.segmenter === m.key ? 'btn-active' : ''}`}
+                  style={{ padding: '6px 10px', fontSize: 12.5 }}
+                  onClick={() => set({ segmenter: m.key })}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Slider
             label="Expected cell size"
             value={params.diameter_px}

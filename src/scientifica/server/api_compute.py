@@ -81,9 +81,13 @@ def _prune_live(keep: int = 32) -> None:
         stale.unlink(missing_ok=True)
 
 
+SEGMENTERS = ("cellpose", "otsu")
+
+
 class SegmentBody(EnhanceBody):
     diameter_px: float = Field(gt=4, le=500)
     sensitivity: float = Field(default=50, ge=0, le=100)
+    segmenter: str = "cellpose"
 
 
 async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
@@ -98,8 +102,9 @@ async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
             _enhance_channels, rgb, body.method, body.strength, body.stretch
         )
         await progress("segmenting")
+        seg_fn = segment.segment if body.segmenter == "cellpose" else segment.segment_otsu
         labels = await asyncio.to_thread(
-            segment.segment, enh_n, enh_m, body.diameter_px, body.sensitivity
+            seg_fn, enh_n, enh_m, body.diameter_px, body.sensitivity
         )
         await progress("measuring")
         cells = await asyncio.to_thread(measure.measure_cells, labels, enh_n, enh_m)
@@ -121,6 +126,8 @@ async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
 
 @router.post("/segment")
 async def compute_segment(body: SegmentBody):
+    if body.segmenter not in SEGMENTERS:
+        raise HTTPException(422, f"segmenter must be one of {SEGMENTERS}")
     if _job_lock.locked():
         raise HTTPException(409, "a segmentation is already running")
     await _job_lock.acquire()
