@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS entries (
     guess INTEGER NOT NULL,
     time_seconds REAL NOT NULL,
     score INTEGER NOT NULL,
+    true_count INTEGER,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 """
@@ -23,6 +24,9 @@ def init() -> None:
     with connect() as conn:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.executescript(_SCHEMA)
+        cols = {r["name"] for r in conn.execute("PRAGMA table_info(entries)")}
+        if "true_count" not in cols:
+            conn.execute("ALTER TABLE entries ADD COLUMN true_count INTEGER")
 
 
 @contextmanager
@@ -36,11 +40,11 @@ def connect():
         conn.close()
 
 
-def add_entry(name: str, game_image_id: str, guess: int, time_seconds: float, score: int) -> dict:
+def add_entry(name: str, game_image_id: str, guess: int, time_seconds: float, score: int, true_count: int | None = None) -> dict:
     with connect() as conn:
         cur = conn.execute(
-            "INSERT INTO entries (name, game_image_id, guess, time_seconds, score) VALUES (?,?,?,?,?)",
-            (name, game_image_id, guess, time_seconds, score),
+            "INSERT INTO entries (name, game_image_id, guess, time_seconds, score, true_count) VALUES (?,?,?,?,?,?)",
+            (name, game_image_id, guess, time_seconds, score, true_count),
         )
         row = conn.execute("SELECT * FROM entries WHERE id=?", (cur.lastrowid,)).fetchone()
     return dict(row)
