@@ -74,9 +74,20 @@ def process_image(image_id: str, png_path, raw_dir, skip_benchmark: bool, prev: 
     labels = load_labels_tiff(raw_dir / "nuclei.tiff", (h, w), rotated)
     n_cells = int(labels.max())
     render.encode_labels_rgb(labels).save(out_dir / "labels_rgb.png", optimize=True)
-    render.render_outlines(labels).save(out_dir / "outlines.png", optimize=True)
-    render.render_mask(labels).save(out_dir / "mask.png", optimize=True)
     np.save(out_dir / "labels.npy", labels)
+
+    # Overlays only: trace the boundaries on a label map close to the source
+    # resolution, then downscale the rendered RGBA. On the hero that turns a 5x
+    # NEAREST collapse into thin antialiased rings instead of a yellow mesh.
+    ss = config.OVERLAY_SUPERSAMPLE
+    ov = labels if ss == 1 else load_labels_tiff(raw_dir / "nuclei.tiff", (h * ss, w * ss), rotated)
+    render.downscale_rgba(render.render_outlines(ov), (w, h)).save(
+        out_dir / "outlines.png", optimize=True
+    )
+    render.downscale_rgba(render.render_mask(ov), (w, h)).save(
+        out_dir / "mask.png", optimize=True
+    )
+    del ov
 
     cells = measure.measure_cells(labels, chans["dapi"], chans["lamin_b1"])
     with open(out_dir / "features.json", "w") as f:

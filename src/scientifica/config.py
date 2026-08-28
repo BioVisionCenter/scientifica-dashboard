@@ -20,6 +20,11 @@ HERO_IDS = {"roi_12"}
 # Long side of display.jpg (napari render shown full-bleed on the TV)
 DISPLAY_LONG_SIDE = 2560
 
+# Overlays are traced at this multiple of the working frame and downscaled, so
+# boundaries stay thin and antialiased instead of NEAREST-blocky. Only affects
+# outlines.png / mask.png; labels_rgb.png and labels.npy stay exact at 1x.
+OVERLAY_SUPERSAMPLE = 2
+
 # Official ROI names from ROI_naming.xlsx (data/ is gitignored, so the mapping
 # lives in code). roi_13 exists only as a waldog print, not in the manifest.
 ROI_NAMES = {
@@ -43,7 +48,6 @@ ROI_NAMES = {
 CHANNEL_DEFS = {
     "dapi": ("DAPI", "#00AAFF"),
     "lamin_b1": ("Lamin B1", "#FF00FF"),
-    "nanog": ("nanog", "#FFE94F"),
 }
 # Percentile window baked into the 8-bit channel PNGs
 CHANNEL_STRETCH = (0.1, 99.8)
