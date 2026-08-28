@@ -40,6 +40,8 @@ export interface ChannelMeta {
   window: OmeroWindow
   /** index on the zarr c axis */
   index: number
+  /** omero `active`: shown by default */
+  active?: boolean
 }
 
 /** Per-channel viewer settings; min/max window in raw dtype units. */

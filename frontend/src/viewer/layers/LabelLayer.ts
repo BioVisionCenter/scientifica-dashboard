@@ -84,7 +84,8 @@ export class LabelLayer extends TileLayer<PixelData> {
       tileSize: loader[0].tileSize,
       minZoom: -(loader.length - 1),
       maxZoom: 0,
-      refinementStrategy: 'no-overlap',
+      // parent tiles stay until the finer ones arrive (no gaps while zooming)
+      refinementStrategy: 'best-available',
       maxRequests: 8,
       pickable: props.pickable ?? false,
       updateTriggers: { getTileData: [loader] },

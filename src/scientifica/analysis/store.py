@@ -148,6 +148,7 @@ def channel_meta_records(ome: OmeZarrContainer) -> list[dict]:
                     "end": float(vis.end),
                 },
                 "index": i,
+                "active": bool(vis.active),
             }
         )
     return records

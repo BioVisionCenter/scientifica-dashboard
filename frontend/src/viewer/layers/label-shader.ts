@@ -102,7 +102,7 @@ void main() {
   float edge = 0.0;
   if (fg && (label.mode > 0.5 || isSel || isHov)) {
     // coverage ramps from 0 (interior) to ~0.5 (on the boundary)
-    edge = smoothstep(0.02, 0.3, boundaryCoverage(vTexCoord, id, label.texel * label.edgeTexels));
+    edge = smoothstep(0.02, 0.18, boundaryCoverage(vTexCoord, id, label.texel * label.edgeTexels));
   }
   vec4 col = vec4(0.);
   if (fg) {

@@ -55,7 +55,7 @@ export function channelDefaults(channels: ChannelMeta[]): Record<string, Channel
   return Object.fromEntries(
     channels.map((ch) => [
       ch.key,
-      { visible: true, color: normalizeHex(ch.color), min: ch.window.start, max: ch.window.end },
+      { visible: ch.active ?? true, color: normalizeHex(ch.color), min: ch.window.start, max: ch.window.end },
     ]),
   )
 }

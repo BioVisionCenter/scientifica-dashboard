@@ -40,15 +40,28 @@ async def ws(websocket: WebSocket, role: str = "tv"):
 
 
 class DerivedStaticFiles(StaticFiles):
-    """Static mount for data/derived. Nothing here is immutable: a pipeline
-    re-run rewrites chunks under the same URLs, so every file revalidates
-    (ETag/Last-Modified -> 304), which is cheap on a LAN."""
+    """Static mount for data/derived and data/source with cache policy by kind:
+
+    - image pyramid chunks (`<zarr>/<level>/…`): cached for a day — they only
+      change on a deliberate `rechunk`, and every chunk is small now
+    - `labels/live_*` chunks: immutable (unique name per job)
+    - everything rewritten in place under the same URL (`labels/nuclei`, zarr
+      metadata, manifest / cells json, posters): revalidate (ETag -> 304)
+    """
 
     def file_response(self, full_path, stat_result, scope, status_code=200) -> Response:
         response = super().file_response(full_path, stat_result, scope, status_code)
-        name = Path(str(full_path)).name
-        del name
-        response.headers["Cache-Control"] = "no-cache"
+        path = str(full_path)
+        name = Path(path).name
+        zarr_rel = path.split(".zarr/", 1)[1] if ".zarr/" in path else None
+        if name.startswith(".z") or name.endswith((".json", ".jpg", ".png")) or zarr_rel is None:
+            response.headers["Cache-Control"] = "no-cache"
+        elif zarr_rel.startswith("labels/live_"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif zarr_rel.startswith("labels/") or zarr_rel.startswith("tables/"):
+            response.headers["Cache-Control"] = "no-cache"
+        else:  # image pyramid chunk
+            response.headers["Cache-Control"] = "public, max-age=86400"
         return response
 
 

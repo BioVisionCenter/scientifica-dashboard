@@ -247,9 +247,11 @@ export function OmeZarrStage(props: Props) {
     return label && label > 0 ? label : null
   }
 
-  const accent = useMemo(() => cssRgba('--ngio-accent'), [theme])
-  const accent2 = useMemo(() => cssRgba('--ngio-accent-2'), [theme])
-  const outline = useMemo(() => cssRgba('--ngio-amber'), [theme])
+  // the store's channels are cyan / magenta / yellow, so the overlay colours
+  // must avoid all three: coral outlines, white hover, amber selection
+  const accent = useMemo(() => cssRgba('--ngio-amber'), [theme]) // selected
+  const accent2: RGBA = [255, 255, 255, 255] // hovered
+  const outline: RGBA = [255, 93, 58, 255]
   const scrim = useMemo(() => cssRgba('--ccc-stage', 0.92), [theme])
   const scrimBorder = useMemo(() => cssRgba('--ngio-line-strong', 0.9), [theme])
 
@@ -271,7 +273,9 @@ export function OmeZarrStage(props: Props) {
           domain: chans.map(() => [0, dtypeMax(source.dtype)]),
           extensions: [new ColorPaletteExtension()],
           pickable: false,
-          excludeBackground: true,
+          // keep Viv's coarse full-image backdrop: it fills the gaps while the
+          // tiles of a new zoom level are still loading (no black flashes)
+          excludeBackground: false,
         }),
       )
     }
@@ -283,7 +287,7 @@ export function OmeZarrStage(props: Props) {
       accent,
       accent2,
       outline,
-      lineWidth: 2.5,
+      lineWidth: 3,
       cellDiameter: image.diameter_px || 60,
       pickable: interactive && !drawMode,
     }

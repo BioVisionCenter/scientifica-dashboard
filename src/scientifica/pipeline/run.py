@@ -73,6 +73,47 @@ def cmd_clean(args) -> None:
     _log("clean: done" + (" (dry run)" if args.dry_run else ""))
 
 
+# --- rechunk ----------------------------------------------------------------
+
+def cmd_rechunk(args) -> None:
+    """Rewrite the image pyramid with small chunks (viewer tiles = chunks).
+
+    The delivery uses 2160x2560 chunks (5-7 MB each): every Viv tile pulled
+    and decoded several of them on the main thread. Idempotent: levels that
+    already have the target chunks are skipped. Stop the server first.
+    """
+    import os
+
+    import zarr
+
+    root = config.zarr_path()
+    g = zarr.open_group(root, mode="r+", zarr_format=2)
+    size = args.chunk
+    for lvl in [d["path"] for d in g.attrs["multiscales"][0]["datasets"]]:
+        src = g[lvl]
+        if tuple(src.chunks[-2:]) == (size, size):
+            _log(f"  level {lvl}: already {size}x{size}")
+            continue
+        tmp_name = f"_rechunk_{lvl}"
+        chunks = (1,) * (src.ndim - 2) + (size, size)
+        tmp = zarr.create_array(
+            store=root, name=tmp_name, shape=src.shape, chunks=chunks, dtype=src.dtype,
+            compressors=src.compressors, fill_value=src.fill_value, zarr_format=2,
+            chunk_key_encoding={"name": "v2", "separator": "/"}, overwrite=True,
+        )
+        t0 = time.time()
+        rows = src.chunks[-2]
+        for c in range(src.shape[0]):
+            for y0 in range(0, src.shape[-2], rows):
+                y1 = min(src.shape[-2], y0 + rows)
+                tmp[c, ..., y0:y1, :] = src[c, ..., y0:y1, :]
+        del tmp
+        shutil.rmtree(root / lvl)
+        os.rename(root / tmp_name, root / lvl)
+        _log(f"  level {lvl}: {src.shape} rechunked to {chunks} in {time.time() - t0:.0f}s")
+    _log("rechunk: done")
+
+
 # --- segment ----------------------------------------------------------------
 
 def _stitch_block_size(tile: int, halo: int, diameter: float) -> int:
@@ -273,6 +314,9 @@ def main() -> None:
     p.add_argument("--backup", action="store_true", help="copy tables/ and labels/ aside first")
     p.add_argument("--dry-run", action="store_true")
 
+    p = sub.add_parser("rechunk", help="rewrite the image pyramid with viewer-sized chunks")
+    p.add_argument("--chunk", type=int, default=512)
+
     p = sub.add_parser("segment", help="cellpose-SAM segmentation of the whole well")
     p.add_argument("--only", help="restrict to one ROI id (dry run), e.g. roi_3")
     p.add_argument("--skip-segmentation", action="store_true", help="keep an existing labels/nuclei")
@@ -301,6 +345,8 @@ def main() -> None:
     config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
     if args.cmd == "clean":
         cmd_clean(args)
+    elif args.cmd == "rechunk":
+        cmd_rechunk(args)
     elif args.cmd == "segment":
         cmd_segment(args)
     elif args.cmd == "measure":
