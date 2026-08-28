@@ -1,0 +1,1173 @@
+{
+ "generated": "2026-08-28T15:58:31+00:00",
+ "defaults": {
+  "denoise": {
+   "method": "gaussian",
+   "strength": 1.5
+  },
+  "stretch": [
+   1.0,
+   99.5
+  ],
+  "diameter_px": 73.9,
+  "sensitivity": 50
+ },
+ "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+ "image_shape": [
+  3,
+  19440,
+  20480
+ ],
+ "image_width": 20480,
+ "image_height": 19440,
+ "pixel_size_um": 0.1625,
+ "channels": [
+  {
+   "key": "dapi",
+   "label": "DAPI",
+   "color": "00FFFF",
+   "window": {
+    "min": 0.0,
+    "max": 65535.0,
+    "start": 0.0,
+    "end": 550.0
+   },
+   "index": 0,
+   "active": true
+  },
+  {
+   "key": "nanog",
+   "label": "nanog",
+   "color": "FFFF00",
+   "window": {
+    "min": 0.0,
+    "max": 65535.0,
+    "start": 0.0,
+    "end": 180.0
+   },
+   "index": 1,
+   "active": false
+  },
+  {
+   "key": "lamin_b1",
+   "label": "Lamin B1",
+   "color": "FF00FF",
+   "window": {
+    "min": 0.0,
+    "max": 65535.0,
+    "start": 0.0,
+    "end": 1200.0
+   },
+   "index": 2,
+   "active": true
+  }
+ ],
+ "images": [
+  {
+   "id": "roi_0",
+   "title": "Field 1",
+   "hero": false,
+   "bbox": {
+    "x": 8210,
+    "y": 4340,
+    "width": 1260,
+    "height": 891
+   },
+   "width": 1260,
+   "height": 891,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_0/cells_nuclei.json",
+     "cell_count": 148
+    }
+   },
+   "cell_count": 148,
+   "diameter_px": 75.5,
+   "cellpose_seconds": 7.0,
+   "assets": {
+    "display": "/assets/roi_0/display.jpg",
+    "enhanced": "/assets/roi_0/enhanced.jpg",
+    "outlines": "/assets/roi_0/outlines.png"
+   }
+  },
+  {
+   "id": "roi_2",
+   "title": "Field 2",
+   "hero": false,
+   "bbox": {
+    "x": 6405,
+    "y": 7098,
+    "width": 1260,
+    "height": 891
+   },
+   "width": 1260,
+   "height": 891,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_2/cells_nuclei.json",
+     "cell_count": 159
+    }
+   },
+   "cell_count": 159,
+   "diameter_px": 75.1,
+   "cellpose_seconds": 3.7,
+   "assets": {
+    "display": "/assets/roi_2/display.jpg",
+    "enhanced": "/assets/roi_2/enhanced.jpg",
+    "outlines": "/assets/roi_2/outlines.png"
+   }
+  },
+  {
+   "id": "roi_3",
+   "title": "Field 3",
+   "hero": false,
+   "bbox": {
+    "x": 8263,
+    "y": 8891,
+    "width": 1259,
+    "height": 892
+   },
+   "width": 1259,
+   "height": 892,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_3/cells_nuclei.json",
+     "cell_count": 131
+    }
+   },
+   "cell_count": 131,
+   "diameter_px": 75.4,
+   "cellpose_seconds": 3.6,
+   "assets": {
+    "display": "/assets/roi_3/display.jpg",
+    "enhanced": "/assets/roi_3/enhanced.jpg",
+    "outlines": "/assets/roi_3/outlines.png"
+   }
+  },
+  {
+   "id": "roi_4",
+   "title": "Field 4",
+   "hero": false,
+   "bbox": {
+    "x": 10261,
+    "y": 13632,
+    "width": 1259,
+    "height": 891
+   },
+   "width": 1259,
+   "height": 891,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_4/cells_nuclei.json",
+     "cell_count": 116
+    }
+   },
+   "cell_count": 116,
+   "diameter_px": 74.8,
+   "cellpose_seconds": 3.5,
+   "assets": {
+    "display": "/assets/roi_4/display.jpg",
+    "enhanced": "/assets/roi_4/enhanced.jpg",
+    "outlines": "/assets/roi_4/outlines.png"
+   }
+  },
+  {
+   "id": "roi_5",
+   "title": "Field 5",
+   "hero": false,
+   "bbox": {
+    "x": 3839,
+    "y": 15132,
+    "width": 1260,
+    "height": 891
+   },
+   "width": 1260,
+   "height": 891,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_5/cells_nuclei.json",
+     "cell_count": 192
+    }
+   },
+   "cell_count": 192,
+   "diameter_px": 68.4,
+   "cellpose_seconds": 4.0,
+   "assets": {
+    "display": "/assets/roi_5/display.jpg",
+    "enhanced": "/assets/roi_5/enhanced.jpg",
+    "outlines": "/assets/roi_5/outlines.png"
+   }
+  },
+  {
+   "id": "roi_6",
+   "title": "Field 6",
+   "hero": false,
+   "bbox": {
+    "x": 16406,
+    "y": 5094,
+    "width": 1260,
+    "height": 892
+   },
+   "width": 1260,
+   "height": 892,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_6/cells_nuclei.json",
+     "cell_count": 209
+    }
+   },
+   "cell_count": 209,
+   "diameter_px": 69.6,
+   "cellpose_seconds": 4.0,
+   "assets": {
+    "display": "/assets/roi_6/display.jpg",
+    "enhanced": "/assets/roi_6/enhanced.jpg",
+    "outlines": "/assets/roi_6/outlines.png"
+   }
+  },
+  {
+   "id": "roi_1",
+   "title": "Field 7",
+   "hero": false,
+   "bbox": {
+    "x": 3617,
+    "y": 4369,
+    "width": 1465,
+    "height": 2071
+   },
+   "width": 1465,
+   "height": 2071,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_1/cells_nuclei.json",
+     "cell_count": 400
+    }
+   },
+   "cell_count": 400,
+   "diameter_px": 74.9,
+   "cellpose_seconds": 8.7,
+   "assets": {
+    "display": "/assets/roi_1/display.jpg",
+    "enhanced": "/assets/roi_1/enhanced.jpg",
+    "outlines": "/assets/roi_1/outlines.png"
+   }
+  },
+  {
+   "id": "roi_7",
+   "title": "Field 8",
+   "hero": false,
+   "bbox": {
+    "x": 13874,
+    "y": 10855,
+    "width": 1465,
+    "height": 2070
+   },
+   "width": 1465,
+   "height": 2070,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_7/cells_nuclei.json",
+     "cell_count": 522
+    }
+   },
+   "cell_count": 522,
+   "diameter_px": 69.9,
+   "cellpose_seconds": 12.4,
+   "assets": {
+    "display": "/assets/roi_7/display.jpg",
+    "enhanced": "/assets/roi_7/enhanced.jpg",
+    "outlines": "/assets/roi_7/outlines.png"
+   }
+  },
+  {
+   "id": "roi_8",
+   "title": "Field 9",
+   "hero": false,
+   "bbox": {
+    "x": 11322,
+    "y": 15191,
+    "width": 1464,
+    "height": 2071
+   },
+   "width": 1464,
+   "height": 2071,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_8/cells_nuclei.json",
+     "cell_count": 410
+    }
+   },
+   "cell_count": 410,
+   "diameter_px": 71.2,
+   "cellpose_seconds": 8.4,
+   "assets": {
+    "display": "/assets/roi_8/display.jpg",
+    "enhanced": "/assets/roi_8/enhanced.jpg",
+    "outlines": "/assets/roi_8/outlines.png"
+   }
+  },
+  {
+   "id": "roi_9",
+   "title": "Field 10",
+   "hero": false,
+   "bbox": {
+    "x": 6202,
+    "y": 6496,
+    "width": 1465,
+    "height": 2070
+   },
+   "width": 1465,
+   "height": 2070,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_9/cells_nuclei.json",
+     "cell_count": 387
+    }
+   },
+   "cell_count": 387,
+   "diameter_px": 74.5,
+   "cellpose_seconds": 8.8,
+   "assets": {
+    "display": "/assets/roi_9/display.jpg",
+    "enhanced": "/assets/roi_9/enhanced.jpg",
+    "outlines": "/assets/roi_9/outlines.png"
+   }
+  },
+  {
+   "id": "roi_10",
+   "title": "Field 11",
+   "hero": false,
+   "bbox": {
+    "x": 16329,
+    "y": 4397,
+    "width": 1465,
+    "height": 2071
+   },
+   "width": 1465,
+   "height": 2071,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_10/cells_nuclei.json",
+     "cell_count": 442
+    }
+   },
+   "cell_count": 442,
+   "diameter_px": 70.7,
+   "cellpose_seconds": 8.6,
+   "assets": {
+    "display": "/assets/roi_10/display.jpg",
+    "enhanced": "/assets/roi_10/enhanced.jpg",
+    "outlines": "/assets/roi_10/outlines.png"
+   }
+  },
+  {
+   "id": "roi_11",
+   "title": "Field 12",
+   "hero": false,
+   "bbox": {
+    "x": 10272,
+    "y": 2181,
+    "width": 1465,
+    "height": 2071
+   },
+   "width": 1465,
+   "height": 2071,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_11/cells_nuclei.json",
+     "cell_count": 478
+    }
+   },
+   "cell_count": 478,
+   "diameter_px": 72.9,
+   "cellpose_seconds": 8.9,
+   "assets": {
+    "display": "/assets/roi_11/display.jpg",
+    "enhanced": "/assets/roi_11/enhanced.jpg",
+    "outlines": "/assets/roi_11/outlines.png"
+   }
+  },
+  {
+   "id": "roi_13",
+   "title": "Field 13",
+   "hero": false,
+   "bbox": {
+    "x": 2982,
+    "y": 2304,
+    "width": 4276,
+    "height": 6045
+   },
+   "width": 4276,
+   "height": 6045,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_13/cells_nuclei.json",
+     "cell_count": 3547
+    }
+   },
+   "cell_count": 3547,
+   "diameter_px": 73.9,
+   "cellpose_seconds": 115.1,
+   "assets": {
+    "display": "/assets/roi_13/display.jpg",
+    "enhanced": "/assets/roi_13/enhanced.jpg",
+    "outlines": "/assets/roi_13/outlines.png"
+   }
+  },
+  {
+   "id": "roi_12",
+   "title": "Field 14",
+   "hero": true,
+   "bbox": {
+    "x": 65,
+    "y": 80,
+    "width": 20291,
+    "height": 14351
+   },
+   "width": 20291,
+   "height": 14351,
+   "image_width": 20480,
+   "image_height": 19440,
+   "image_shape": [
+    3,
+    19440,
+    20480
+   ],
+   "zarr_url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr",
+   "pixel_size_um": 0.1625,
+   "channels": [
+    {
+     "key": "dapi",
+     "label": "DAPI",
+     "color": "00FFFF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 550.0
+     },
+     "index": 0,
+     "active": true
+    },
+    {
+     "key": "nanog",
+     "label": "nanog",
+     "color": "FFFF00",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 180.0
+     },
+     "index": 1,
+     "active": false
+    },
+    {
+     "key": "lamin_b1",
+     "label": "Lamin B1",
+     "color": "FF00FF",
+     "window": {
+      "min": 0.0,
+      "max": 65535.0,
+      "start": 0.0,
+      "end": 1200.0
+     },
+     "index": 2,
+     "active": true
+    }
+   ],
+   "labels": {
+    "nuclei": {
+     "name": "nuclei",
+     "url": "/assets/source/Cardiomyocyte_mip_scientifica_2026.zarr/labels/nuclei",
+     "cells_url": "/assets/roi_12/cells_nuclei.json",
+     "cell_count": 30376
+    }
+   },
+   "cell_count": 30376,
+   "diameter_px": 73.3,
+   "cellpose_seconds": 1490.0,
+   "assets": {
+    "display": "/assets/roi_12/display.jpg",
+    "enhanced": "/assets/roi_12/enhanced.jpg",
+    "outlines": "/assets/roi_12/outlines.png"
+   }
+  }
+ ]
+}

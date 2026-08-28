@@ -1,0 +1,103 @@
+{
+ "_help": "Ground truth for the counting game. `true_count` is what guesses are scored against \u2014 edit it freely (the server re-reads this file when it changes). `cellpose_*` are the segmentation results for reference and are refreshed by `scientifica-pipeline measure`, which never touches an existing `true_count`.",
+ "rois": [
+  {
+   "id": "roi_0",
+   "name": "Field 1",
+   "true_count": 148,
+   "cellpose_count": 148,
+   "cellpose_seconds": 7.0
+  },
+  {
+   "id": "roi_2",
+   "name": "Field 2",
+   "true_count": 159,
+   "cellpose_count": 159,
+   "cellpose_seconds": 3.7
+  },
+  {
+   "id": "roi_3",
+   "name": "Field 3",
+   "true_count": 131,
+   "cellpose_count": 131,
+   "cellpose_seconds": 3.6
+  },
+  {
+   "id": "roi_4",
+   "name": "Field 4",
+   "true_count": 116,
+   "cellpose_count": 116,
+   "cellpose_seconds": 3.5
+  },
+  {
+   "id": "roi_5",
+   "name": "Field 5",
+   "true_count": 192,
+   "cellpose_count": 192,
+   "cellpose_seconds": 4.0
+  },
+  {
+   "id": "roi_6",
+   "name": "Field 6",
+   "true_count": 209,
+   "cellpose_count": 209,
+   "cellpose_seconds": 4.0
+  },
+  {
+   "id": "roi_1",
+   "name": "Field 7",
+   "true_count": 400,
+   "cellpose_count": 400,
+   "cellpose_seconds": 8.7
+  },
+  {
+   "id": "roi_7",
+   "name": "Field 8",
+   "true_count": 522,
+   "cellpose_count": 522,
+   "cellpose_seconds": 12.4
+  },
+  {
+   "id": "roi_8",
+   "name": "Field 9",
+   "true_count": 410,
+   "cellpose_count": 410,
+   "cellpose_seconds": 8.4
+  },
+  {
+   "id": "roi_9",
+   "name": "Field 10",
+   "true_count": 387,
+   "cellpose_count": 387,
+   "cellpose_seconds": 8.8
+  },
+  {
+   "id": "roi_10",
+   "name": "Field 11",
+   "true_count": 442,
+   "cellpose_count": 442,
+   "cellpose_seconds": 8.6
+  },
+  {
+   "id": "roi_11",
+   "name": "Field 12",
+   "true_count": 478,
+   "cellpose_count": 478,
+   "cellpose_seconds": 8.9
+  },
+  {
+   "id": "roi_13",
+   "name": "Field 13",
+   "true_count": 3547,
+   "cellpose_count": 3547,
+   "cellpose_seconds": 115.1
+  },
+  {
+   "id": "roi_12",
+   "name": "Field 14",
+   "true_count": 30376,
+   "cellpose_count": 30376,
+   "cellpose_seconds": 1490.0
+  }
+ ]
+}

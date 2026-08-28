@@ -1,4 +1,14 @@
-data/
+# data/ is not in git, except the small derived assets (manifest, game truth,
+# benchmarks, per-ROI posters) that save a full pipeline run on a fresh clone
+data/*
+!data/derived/
+data/derived/*
+!data/derived/*.json
+!data/derived/roi_*/
+data/derived/roi_*/*
+!data/derived/roi_*/display.jpg
+!data/derived/roi_*/enhanced.jpg
+!data/derived/roi_*/outlines.png
 node_modules/
 .venv/
 __pycache__/
