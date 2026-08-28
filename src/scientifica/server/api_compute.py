@@ -94,9 +94,12 @@ def _segment_sync(job_id: str, body: SegmentBody, loop: asyncio.AbstractEventLoo
         consolidation_mode="auto",
     ).product([region_roi])
     halo = int(max(32, math.ceil(2 * body.diameter_px / 16) * 16))
-    it = it.by_grid(size_x=config.LIVE_TILE, size_y=config.LIVE_TILE, tail="balance").with_halo(
-        x=halo, y=halo
-    )
+    if area.width > config.LIVE_TILE or area.height > config.LIVE_TILE:
+        # big regions (hero, Field 13, large drawn rects) are tiled + stitched;
+        # anything that fits in one tile runs as a single seamless call
+        it = it.by_grid(size_x=config.LIVE_TILE, size_y=config.LIVE_TILE, tail="balance").with_halo(
+            x=halo, y=halo
+        )
     total = len(it.rois)
     if total > 1:
         scratch = MemoryStore() if total <= MEMORY_SCRATCH_MAX_TILES else None

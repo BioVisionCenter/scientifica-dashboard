@@ -26,9 +26,12 @@ image. The pipeline writes the segmentation into the store (`labels/nuclei`,
 `tables/nuclei_features`) with ngio's tiled iterators + cellpose-SAM at native
 resolution (~25 min on an M-series GPU; `segment --only roi_3` is a 20 s dry
 run) and derives per-ROI `data/derived/roi_N/{cells_nuclei.json, display.jpg,
-enhanced.jpg, outlines.png}` plus `manifest.json`. `cell_count` per ROI (the
-game's ground truth) is the number of segmented nuclei whose centroid lies in
-the ROI. `data/source/waldog/` (3-color renders) is only used by the waldog
+enhanced.jpg, outlines.png}` plus `manifest.json`. `cell_count` per ROI is the number of
+segmented nuclei whose centroid lies in the ROI. The game's ground truth lives
+apart from those results in `data/derived/game.json` (one entry per ROI with
+`id`, the shown `name` and an editable `true_count`, seeded from the cellpose
+count; the server re-reads it on change and `measure` never overwrites an
+edited value). `data/source/waldog/` (3-color renders) is only used by the waldog
 prints.
 
 ## Running at the booth

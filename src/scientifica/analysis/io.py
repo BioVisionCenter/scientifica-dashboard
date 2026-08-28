@@ -19,7 +19,8 @@ def poster_level(ome: OmeZarrContainer, box_w: int, box_h: int, long_side: int) 
 def poster_from_pyramid(ome: OmeZarrContainer, box, long_side: int) -> tuple[np.ndarray, int]:
     """(RGB composite of the bbox at a coarse level resized to long_side, level).
 
-    Uses the store's omero windows and colours for every channel.
+    Uses the store's omero windows and colours, and only the channels the
+    omero metadata marks `active` — the same look as the viewer's defaults.
     """
     from scientifica.analysis import channels as ch_mod
 
@@ -35,6 +36,8 @@ def poster_from_pyramid(ome: OmeZarrContainer, box, long_side: int) -> tuple[np.
     pairs = []
     for i, ch in enumerate(image.channels_meta.channels):
         vis = ch.channel_visualisation
+        if not vis.active:
+            continue
         v = np.clip((arr[i].astype(np.float32) - vis.start) / max(1.0, vis.end - vis.start), 0, 1)
         pairs.append((v, "#" + str(vis.color).lstrip("#")))
     rgb = ch_mod.composite(pairs)

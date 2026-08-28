@@ -8,7 +8,8 @@ SOURCE_DIR = PROJECT_ROOT / "data" / "source"
 WALDOG_DIR = SOURCE_DIR / "waldog"  # 3-color pngs (waldog prints)
 DERIVED_DIR = PROJECT_ROOT / "data" / "derived"
 DB_PATH = PROJECT_ROOT / "data" / "game.db"
-MANIFEST_PATH = DERIVED_DIR / "manifest.json"
+MANIFEST_PATH = DERIVED_DIR / "manifest.json"  # pipeline output (cellpose results, bboxes, posters)
+GAME_PATH = DERIVED_DIR / "game.json"  # hand-editable game truth per ROI (id + shown name + true_count)
 
 # The single source of truth: the whole-well OME-Zarr (NGFF 0.4, axes c,z,y,x).
 # It is served as-is under /assets/source; every dashboard ROI is a bbox from
@@ -90,7 +91,7 @@ SEG_FLOW_THRESHOLD = 0.4
 SEG_CELLPROB = 0.0
 
 # Live compute (tiled through ngio iterators, region = ROI bbox ∩ drawn rect)
-LIVE_TILE = 1024  # segmentation grid tile, level-0 px
+LIVE_TILE = 2560  # live grid tile, level-0 px: every standard field (<=1465x2071) is ONE tile, no seams
 LIVE_MAX_PIXELS = {"cellpose": 60_000_000, "otsu": 300_000_000}
 FEATURE_TILE = 2048  # feature-extraction grid tile
 CELLPOSE_WORKERS = 1  # one shared torch model

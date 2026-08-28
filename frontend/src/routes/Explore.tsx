@@ -348,6 +348,22 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
           </span>
         </div>
       )}
+      {showsSegmentation && S.liveResult && !S.busy && (
+        <div
+          className="card absolute top-3 right-3 flex items-baseline gap-3 px-4 py-2"
+          style={{ borderColor: 'var(--ccc-magenta)' }}
+        >
+          <span className="eyebrow" style={{ color: 'var(--ccc-magenta-ink)' }}>
+            live · {S.params.segmenter === 'cellpose' ? 'cellpose-SAM' : 'Otsu'}
+          </span>
+          <span className="font-display font-bold" style={{ fontSize: 24, lineHeight: 1, color: 'var(--ngio-ink)' }}>
+            {S.liveResult.count.toLocaleString()} cells
+          </span>
+          <span className="font-mono" style={{ fontSize: 14, color: 'var(--ngio-ink-2)' }}>
+            in {S.liveResult.seconds < 60 ? `${S.liveResult.seconds} s` : `${(S.liveResult.seconds / 60).toFixed(1)} min`}
+          </span>
+        </div>
+      )}
       {S.busy && showsSegmentation && (
         <JobOverlay
           stage={jobStage?.stage ?? null}

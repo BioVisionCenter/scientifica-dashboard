@@ -45,9 +45,13 @@ def _manifest_images() -> dict[str, dict]:
 
 
 def _true_count_for(image_id: str) -> int | None:
+    """scientifica.toml override > data/derived/game.json true_count > manifest cell_count."""
     override = runtime_config.truth_override(image_id)
     if override is not None:
         return override
+    truth = runtime_config.game_truth(image_id)
+    if truth is not None:
+        return truth
     img = _manifest_images().get(image_id)
     return img["cell_count"] if img else None
 

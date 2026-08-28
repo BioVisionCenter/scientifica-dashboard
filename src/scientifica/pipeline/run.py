@@ -1,7 +1,9 @@
 """Offline pipeline over the whole-well OME-Zarr (ngio + cellpose-SAM).
 
-    uv run scientifica-pipeline clean [--backup] [--dry-run]   drop unused tables/labels, .DS_Store, old derived dirs
+    uv run scientifica-pipeline clean [--backup] [--dry-run]   drop unused tables, .DS_Store, old derived dirs
+    uv run scientifica-pipeline prune-live [--dry-run]          drop every live_* label/table/cells json
     uv run scientifica-pipeline segment [--only roi_3] [...]   labels/nuclei for the whole well (cpsam, native res)
+    uv run scientifica-pipeline benchmark                      time cellpose-SAM per ROI (TV "in X s")
     uv run scientifica-pipeline measure                        tables/nuclei_features + per-ROI cells json + manifest
     uv run scientifica-pipeline posters [--only roi_3]         per-ROI display/enhanced/outlines posters
     uv run scientifica-pipeline all                            segment -> measure -> posters
@@ -45,8 +47,9 @@ def cmd_clean(args) -> None:
             p.unlink()
 
     ome = store.open_container()
-    tables = [t for t in ome.list_tables() if t not in config.KEEP_TABLES]
-    labels = list(ome.list_labels())
+    keep_tables = set(config.KEEP_TABLES) | ({f"{config.CURATED_LABEL}_features"} if not args.drop_labels else set())
+    tables = [t for t in ome.list_tables() if t not in keep_tables]
+    labels = [lab for lab in ome.list_labels() if args.drop_labels or lab != config.CURATED_LABEL]
     _log(f"tables to delete: {tables}")
     _log(f"labels to delete: {labels}")
     if args.backup and not args.dry_run and (tables or labels):
@@ -71,6 +74,26 @@ def cmd_clean(args) -> None:
         for p in stale:
             shutil.rmtree(p, ignore_errors=True)
     _log("clean: done" + (" (dry run)" if args.dry_run else ""))
+
+
+def cmd_prune_live(args) -> None:
+    """Delete every live re-segmentation (labels, tables, cells json)."""
+    ome = store.open_container()
+    names = [n for n in ome.list_labels() if n.startswith(config.LIVE_LABEL_PREFIX)]
+    orphans = [t for t in ome.list_tables() if t.startswith(config.LIVE_LABEL_PREFIX)]
+    files = list(config.DERIVED_DIR.glob(f"*/cells_{config.LIVE_LABEL_PREFIX}*.json"))
+    _log(f"live labels: {names}")
+    _log(f"live tables: {len(orphans)}, cells files: {len(files)}")
+    if args.dry_run:
+        return
+    for name in names:
+        image_id = name[len(config.LIVE_LABEL_PREFIX):].rsplit("_", 1)[0]
+        store.discard_live(ome, image_id, name)
+    for t in orphans:  # tables whose label is already gone
+        ome.delete_table(t, missing_ok=True)
+    for f in files:
+        f.unlink(missing_ok=True)
+    _log("prune-live: done")
 
 
 # --- rechunk ----------------------------------------------------------------
@@ -186,6 +209,55 @@ def cmd_segment(args) -> None:
     BENCH_PATH.write_text(json.dumps(bench, indent=1))
 
 
+# --- benchmark --------------------------------------------------------------
+
+def cmd_benchmark(args) -> None:
+    """Time a cellpose-SAM run per ROI (what the TV shows as "found N cells in X s").
+
+    Standard fields run exactly like a live job (one seamless call); the hero
+    is extrapolated from the whole-well run by area unless --include-hero.
+    Results land in benchmarks.json and are picked up by `measure`.
+    """
+    from scientifica.analysis import segment
+
+    ome = store.open_container()
+    boxes = store.roi_boxes(ome)
+    image = ome.get_image()
+    h, w = store.image_shape_yx(ome)
+    bench = json.loads(BENCH_PATH.read_text()) if BENCH_PATH.exists() else {}
+    window = store.channel_windows(ome)[config.NUCLEI_CHANNEL]
+    ids = [args.only] if args.only else store.roi_ids_sorted(boxes)
+    for rid in ids:
+        box = boxes[rid]
+        if rid in config.HERO_IDS and not args.include_hero:
+            if "well" in bench:
+                bench[rid] = round(bench["well"] * box.pixels / (w * h), 1)
+                _log(f"  {rid}: {bench[rid]}s (extrapolated from the whole-well run)")
+            continue
+        label = ome.derive_label(
+            "_bench", channels_policy="squeeze", dtype="uint32",
+            chunks=store.label_chunks(ome), overwrite=True,
+        )
+        it = SegmentationIterator(
+            image, label, channel_selection=config.CHANNEL_DEFS[config.NUCLEI_CHANNEL],
+            axes_order=["y", "x"], consolidation_mode="coarsen",
+        ).product([box.to_roi(ome)])
+        if box.width > config.LIVE_TILE or box.height > config.LIVE_TILE:
+            halo = int(max(32, math.ceil(2 * args.diameter / 16) * 16))
+            it = it.by_grid(size_x=config.LIVE_TILE, size_y=config.LIVE_TILE, tail="balance").with_halo(x=halo, y=halo)
+            if len(it.rois) > 1:
+                it = it.with_stitch(StitchConfig(block_size=_stitch_block_size(config.LIVE_TILE, halo, args.diameter)))
+        func = segment.make_tile_segmenter("cellpose", args.diameter, 50, window, "gaussian", 1.5)
+        t0 = time.time()
+        it.segment(func, mapper=ThreadedMapper(config.CELLPOSE_WORKERS))
+        bench[rid] = round(time.time() - t0, 1)
+        ome.delete_label("_bench", missing_ok=True)
+        _log(f"  {rid}: {bench[rid]}s ({len(it.rois)} tile(s))")
+    config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
+    BENCH_PATH.write_text(json.dumps(bench, indent=1))
+    _log("benchmark: done — run `measure` to refresh the manifest")
+
+
 # --- measure + manifest -----------------------------------------------------
 
 def cmd_measure(args) -> None:
@@ -254,6 +326,16 @@ def cmd_measure(args) -> None:
         )
         _log(f"  {rid} ({images[-1]['title']}): {len(roi_cells)} cells, median diameter {diameter}px")
 
+    # buttons are shown in this order: by field number ("Field 7" after "Field 6"),
+    # not by the table's index (roi_12 is Field 14, roi_13 is Field 13)
+    def field_no(e: dict) -> int:
+        try:
+            return int(e["title"].split()[-1])
+        except (ValueError, IndexError):
+            return 10**6
+
+    images.sort(key=field_no)
+
     defaults = dict(config.DEFAULTS)
     diameters = [e["diameter_px"] for e in images if not e["hero"] and e["diameter_px"]]
     defaults["diameter_px"] = round(float(np.median(diameters)), 1) if diameters else config.SEG_DIAMETER_PX
@@ -270,6 +352,46 @@ def cmd_measure(args) -> None:
     }
     config.MANIFEST_PATH.write_text(json.dumps(manifest, indent=1))
     _log(f"manifest written: {len(images)} images, default diameter {defaults['diameter_px']}px")
+    _write_game_json(images)
+
+
+def _write_game_json(images: list[dict]) -> None:
+    """The game's ground truth, kept apart from the cellpose results.
+
+    One entry per ROI with the id, the shown name and `true_count`. New
+    entries start from the cellpose count; an existing `true_count` is never
+    overwritten (edit it by hand), while the cellpose columns are refreshed.
+    """
+    previous: dict[str, dict] = {}
+    if config.GAME_PATH.exists():
+        try:
+            previous = {r["id"]: r for r in json.loads(config.GAME_PATH.read_text()).get("rois", [])}
+        except (json.JSONDecodeError, KeyError, TypeError):
+            _log(f"warning: {config.GAME_PATH.name} unreadable, rebuilding it")
+    rois = []
+    for img in images:
+        prev = previous.get(img["id"], {})
+        rois.append(
+            {
+                "id": img["id"],
+                "name": img["title"],
+                "true_count": prev.get("true_count", img["cell_count"]),
+                "cellpose_count": img["cell_count"],
+                "cellpose_seconds": img["cellpose_seconds"],
+            }
+        )
+    game = {
+        "_help": (
+            "Ground truth for the counting game. `true_count` is what guesses are scored "
+            "against — edit it freely (the server re-reads this file when it changes). "
+            "`cellpose_*` are the segmentation results for reference and are refreshed by "
+            "`scientifica-pipeline measure`, which never touches an existing `true_count`."
+        ),
+        "rois": rois,
+    }
+    config.GAME_PATH.write_text(json.dumps(game, indent=1))
+    changed = [r["id"] for r in rois if r["true_count"] != r["cellpose_count"]]
+    _log(f"game truth written: {config.GAME_PATH}" + (f" (hand-edited: {changed})" if changed else ""))
 
 
 def _previous_manifest() -> dict[str, dict]:
@@ -312,6 +434,10 @@ def main() -> None:
 
     p = sub.add_parser("clean", help="remove unused tables/labels/.DS_Store from the source store")
     p.add_argument("--backup", action="store_true", help="copy tables/ and labels/ aside first")
+    p.add_argument("--drop-labels", action="store_true", help="also delete labels/nuclei + its features")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("prune-live", help="delete all live re-segmentation results from the store")
     p.add_argument("--dry-run", action="store_true")
 
     p = sub.add_parser("rechunk", help="rewrite the image pyramid with viewer-sized chunks")
@@ -323,6 +449,11 @@ def main() -> None:
     p.add_argument("--diameter", type=float, default=config.SEG_DIAMETER_PX)
     p.add_argument("--niter", type=int, default=config.SEG_NITER)
     p.add_argument("--tile", type=int, default=config.SEG_TILE)
+
+    p = sub.add_parser("benchmark", help="time cellpose-SAM per ROI (cellpose_seconds on the TV)")
+    p.add_argument("--only")
+    p.add_argument("--include-hero", action="store_true", help="really run the hero (~30 min) instead of extrapolating")
+    p.add_argument("--diameter", type=float, default=config.SEG_DIAMETER_PX)
 
     p = sub.add_parser("measure", help="features table, per-ROI cells json, manifest")
     p.add_argument("--provisional", action="store_true", help="manifest without measuring (label not ready)")
@@ -345,10 +476,14 @@ def main() -> None:
     config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
     if args.cmd == "clean":
         cmd_clean(args)
+    elif args.cmd == "prune-live":
+        cmd_prune_live(args)
     elif args.cmd == "rechunk":
         cmd_rechunk(args)
     elif args.cmd == "segment":
         cmd_segment(args)
+    elif args.cmd == "benchmark":
+        cmd_benchmark(args)
     elif args.cmd == "measure":
         cmd_measure(args)
     elif args.cmd == "posters":
