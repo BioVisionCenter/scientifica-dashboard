@@ -77,7 +77,7 @@ export function useWebsocket(role: 'tv' | 'admin') {
             s.setRound(payload as GameRound)
             break
           case 'job:progress':
-            s.setJobStage({ jobId: payload.job_id, stage: payload.stage })
+            s.setJobStage({ jobId: payload.job_id, stage: payload.stage, done: payload.done ?? 0, total: payload.total ?? 0 })
             break
           case 'job:done':
           case 'job:error':

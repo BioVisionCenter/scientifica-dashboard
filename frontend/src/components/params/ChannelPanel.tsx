@@ -1,11 +1,15 @@
 import type { ChannelMeta, ChannelSettings } from '../../api/types'
+import { channelDefaults, channelRange } from '../../viewer/useOmeZarr'
 
 const PRESET_COLORS = ['#00AAFF', '#FF00FF', '#FFE94F', '#39C98E', '#FFFFFF']
 
 export function defaultChannelSettings(channels: ChannelMeta[]): Record<string, ChannelSettings> {
-  return Object.fromEntries(
-    channels.map((ch) => [ch.key, { visible: true, color: ch.color, min: 0, max: 255 }]),
-  )
+  return channelDefaults(channels)
+}
+
+/** ~1024 slider positions whatever the raw range */
+function sliderStep(range: [number, number]): number {
+  return Math.max(1, Math.round((range[1] - range[0]) / 1024))
 }
 
 /** Per-channel display controls: visibility, color, min/max contrast window. */
@@ -36,6 +40,8 @@ export function ChannelPanel({
       {channels.map((ch) => {
         const s = settings[ch.key]
         if (!s) return null
+        const range = channelRange(ch)
+        const step = sliderStep(range)
         return (
           <div key={ch.key} className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
@@ -69,37 +75,37 @@ export function ChannelPanel({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="w-7 text-right font-mono text-[11px]" style={{ color: 'var(--ngio-muted)' }}>
-                {s.min}
+              <span className="w-10 text-right font-mono text-[11px]" style={{ color: 'var(--ngio-muted)' }}>
+                {Math.round(s.min)}
               </span>
               <input
                 type="range"
                 className="flex-1"
-                min={0}
-                max={254}
-                step={1}
+                min={range[0]}
+                max={range[1] - step}
+                step={step}
                 value={s.min}
                 disabled={!s.visible}
                 onChange={(e) => {
-                  const v = parseInt(e.target.value)
-                  set(ch.key, { min: v, max: Math.max(s.max, v + 1) })
+                  const v = parseFloat(e.target.value)
+                  set(ch.key, { min: v, max: Math.max(s.max, v + step) })
                 }}
               />
               <input
                 type="range"
                 className="flex-1"
-                min={1}
-                max={255}
-                step={1}
+                min={range[0] + step}
+                max={range[1]}
+                step={step}
                 value={s.max}
                 disabled={!s.visible}
                 onChange={(e) => {
-                  const v = parseInt(e.target.value)
-                  set(ch.key, { max: v, min: Math.min(s.min, v - 1) })
+                  const v = parseFloat(e.target.value)
+                  set(ch.key, { max: v, min: Math.min(s.min, v - step) })
                 }}
               />
-              <span className="w-7 font-mono text-[11px]" style={{ color: 'var(--ngio-muted)' }}>
-                {s.max}
+              <span className="w-10 font-mono text-[11px]" style={{ color: 'var(--ngio-muted)' }}>
+                {Math.round(s.max)}
               </span>
             </div>
           </div>

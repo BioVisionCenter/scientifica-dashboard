@@ -9,4 +9,4 @@ tau = 6.0   # speed budget in seconds per cell
 [truth_overrides]
 # Per-image true counts that override the segmentation cell_count from the
 # manifest, e.g.:
-# roi_03 = 210
+# roi_3 = 210

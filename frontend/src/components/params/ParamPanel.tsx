@@ -1,4 +1,4 @@
-import type { Defaults, ExploreParams, PipelineStep } from '../../api/types'
+import type { Defaults, ExploreParams, PipelineStep, RegionRect } from '../../api/types'
 
 interface Props {
   params: ExploreParams
@@ -6,9 +6,13 @@ interface Props {
   step: PipelineStep
   busy: boolean
   busyStage: string | null
+  progress: { done: number; total: number } | null
   liveCount: number | null
+  liveSeconds: number | null
+  region: RegionRect | null
   onChange: (p: ExploreParams) => void
   onRunSegment: () => void
+  onCancel: () => void
   onReset: () => void
 }
 
@@ -111,11 +115,29 @@ export function ParamPanel(props: Props) {
             onChange={(v) => set({ sensitivity: v })}
           />
           <button className="btn btn-primary" disabled={busy} onClick={props.onRunSegment}>
-            {busy ? `Running: ${props.busyStage ?? 'starting'}…` : 'Re-segment visible region'}
+            {busy
+              ? `Running: ${props.busyStage ?? 'starting'}${
+                  props.progress && props.progress.total > 1 ? ` ${props.progress.done}/${props.progress.total}` : ''
+                }…`
+              : props.region
+                ? `Re-segment region (${props.region.width}×${props.region.height} px)`
+                : 'Re-segment whole image'}
           </button>
+          {!busy && !props.region && (
+            <p className="text-[12px]" style={{ color: 'var(--ngio-muted)' }}>
+              Tip: use “draw region” on the image to run on a smaller area.
+            </p>
+          )}
+          {busy && (
+            <button className="btn" onClick={props.onCancel}>
+              cancel
+            </button>
+          )}
           {props.liveCount !== null && !busy && (
             <div className="text-center font-mono" style={{ color: 'var(--ngio-accent-ink)', fontSize: 15 }}>
-              live result: {props.liveCount} cells in this region
+              live result: {props.liveCount} cells
+              {props.region ? ' in this region' : ''}
+              {props.liveSeconds !== null ? ` · ${props.liveSeconds}s` : ''}
             </div>
           )}
         </>

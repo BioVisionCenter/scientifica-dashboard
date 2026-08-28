@@ -1,187 +1,317 @@
-"""Offline pipeline: napari pngs + raw tiffs -> derived web assets + manifest.
+"""Offline pipeline over the whole-well OME-Zarr (ngio + cellpose-SAM).
 
-Per ROI it derives: display.jpg (napari render, game/TV), per-channel grayscale
-PNGs for the client-side blending viewer, an enhanced composite, segmentation
-assets from the curated nuclei labels, per-cell features, and a timed cellpose
-benchmark (the labels themselves stay curated; only the seconds are kept).
+    uv run scientifica-pipeline clean [--backup] [--dry-run]   drop unused tables/labels, .DS_Store, old derived dirs
+    uv run scientifica-pipeline segment [--only roi_3] [...]   labels/nuclei for the whole well (cpsam, native res)
+    uv run scientifica-pipeline measure                        tables/nuclei_features + per-ROI cells json + manifest
+    uv run scientifica-pipeline posters [--only roi_3]         per-ROI display/enhanced/outlines posters
+    uv run scientifica-pipeline all                            segment -> measure -> posters
 
-Usage: uv run scientifica-pipeline [--only 0,5] [--skip-benchmark]
+ROIs come from tables/<ROI_TABLE>; ids are its FieldIndex values (roi_0..).
+Every coordinate the dashboard sees is a level-0 pixel of the whole well.
 """
 
 import argparse
 import json
+import math
+import shutil
+import threading
 import time
 from datetime import datetime, timezone
 
 import numpy as np
+from ngio import SegmentationIterator
+from ngio.iterators import StitchConfig, ThreadedMapper
 from PIL import Image
 
 from scientifica import config
-from scientifica.analysis import channels, enhance, measure, render
-from scientifica.analysis.io import load_channel_tiff, load_display_png, load_labels_tiff
+from scientifica.analysis import measure, render, store
+from scientifica.analysis.io import label_crop_at_level, poster_from_pyramid
+
+BENCH_PATH = config.DERIVED_DIR / "benchmarks.json"
 
 
-def discover() -> list[tuple[str, "config.Path", "config.Path"]]:
-    """(image_id, napari_png, raw_dir) for every dashboard ROI."""
-    items = []
-    for png in sorted(config.NAPARI_DIR.glob("roi_*.png")):
-        image_id = png.stem
-        raw_dir = config.RAW_TIFF_DIR / image_id
-        if not raw_dir.is_dir():
-            raise SystemExit(f"{image_id}: no raw tiffs in {raw_dir} (run scientifica-ingest)")
-        items.append((image_id, png, raw_dir))
-    return items
+def _log(msg: str) -> None:
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def process_image(image_id: str, png_path, raw_dir, skip_benchmark: bool, prev: dict | None) -> dict:
-    t0 = time.time()
-    is_hero = f"roi_{int(image_id.split('_')[1])}" in config.HERO_IDS
-    long_side = config.HERO_LONG_SIDE if is_hero else config.WORKING_LONG_SIDE
-    out_dir = config.DERIVED_DIR / image_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+# --- clean ------------------------------------------------------------------
 
-    # Display asset: the napari render, landscape, TV-sized
-    display = load_display_png(png_path, config.DISPLAY_LONG_SIDE)
-    Image.fromarray(display).save(out_dir / "display.jpg", quality=90)
+def cmd_clean(args) -> None:
+    root = config.zarr_path()
+    ds = [p for p in root.rglob(".DS_Store")]
+    _log(f".DS_Store files: {len(ds)}")
+    if not args.dry_run:
+        for p in ds:
+            p.unlink()
 
-    # Channels: every tiff except the labels, landscape at working size
-    chans: dict[str, np.ndarray] = {}
-    ranges: dict[str, tuple[int, int]] = {}
-    rotated = False
-    for key in config.CHANNEL_DEFS:
-        path = raw_dir / f"{key}.tiff"
-        if not path.exists():
-            continue
-        chans[key], rotated, ranges[key] = load_channel_tiff(path, long_side)
-        Image.fromarray(chans[key]).save(out_dir / f"chan_{key}.png", optimize=True)
-    if "dapi" not in chans or "lamin_b1" not in chans:
-        raise SystemExit(f"{image_id}: missing dapi/lamin_b1 tiff in {raw_dir}")
-    h, w = chans["dapi"].shape
-    print(f"[{image_id}] channels {sorted(chans)} {w}x{h}{' (rotated)' if rotated else ''}")
+    ome = store.open_container()
+    tables = [t for t in ome.list_tables() if t not in config.KEEP_TABLES]
+    labels = list(ome.list_labels())
+    _log(f"tables to delete: {tables}")
+    _log(f"labels to delete: {labels}")
+    if args.backup and not args.dry_run and (tables or labels):
+        dest = config.SOURCE_DIR / f"_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        for sub in ("tables", "labels"):
+            if (root / sub).is_dir():
+                shutil.copytree(root / sub, dest / sub, ignore=shutil.ignore_patterns(".DS_Store"))
+        _log(f"backup of tables/ + labels/ written to {dest}")
+    if not args.dry_run:
+        for t in tables:
+            ome.delete_table(t, missing_ok=True)
+        for lab in labels:
+            ome.delete_label(lab, missing_ok=True)
 
-    # Enhanced composite, pixel-registered with the channels
-    d = config.DEFAULTS
-    enhanced = {
-        key: enhance.enhance_channel(chan, d["denoise"]["method"], d["denoise"]["strength"], *d["stretch"])
-        for key, chan in chans.items()
-    }
-    enhanced_rgb = channels.composite(
-        [(enhanced[key], config.CHANNEL_DEFS[key][1]) for key in enhanced]
+    boxes = store.roi_boxes(ome, refresh=True)
+    stale = [
+        p for p in config.DERIVED_DIR.iterdir()
+        if p.is_dir() and p.name not in boxes and (p.name.startswith("roi_") or p.name == "_live")
+    ] if config.DERIVED_DIR.is_dir() else []
+    _log(f"stale derived dirs: {[p.name for p in stale]}")
+    if not args.dry_run:
+        for p in stale:
+            shutil.rmtree(p, ignore_errors=True)
+    _log("clean: done" + (" (dry run)" if args.dry_run else ""))
+
+
+# --- segment ----------------------------------------------------------------
+
+def _stitch_block_size(tile: int, halo: int, diameter: float) -> int:
+    tile_area = (tile + 2 * halo) ** 2
+    cell_area = math.pi * (diameter / 2) ** 2
+    return int(max(10_000, 4 * tile_area / cell_area))
+
+
+def cmd_segment(args) -> None:
+    from scientifica.analysis import segment
+
+    ome = store.open_container()
+    boxes = store.roi_boxes(ome)
+    if args.skip_segmentation and config.CURATED_LABEL in ome.list_labels():
+        _log(f"labels/{config.CURATED_LABEL} exists, --skip-segmentation: nothing to do")
+        return
+    image = ome.get_image()
+    label = ome.derive_label(
+        config.CURATED_LABEL,
+        channels_policy="squeeze",
+        dtype="uint32",
+        chunks=store.label_chunks(ome),
+        overwrite=True,
     )
-    Image.fromarray(enhanced_rgb).save(out_dir / "enhanced.jpg", quality=90)
-
-    # Segmentation assets from the curated labels
-    labels = load_labels_tiff(raw_dir / "nuclei.tiff", (h, w), rotated)
-    n_cells = int(labels.max())
-    render.encode_labels_rgb(labels).save(out_dir / "labels_rgb.png", optimize=True)
-    np.save(out_dir / "labels.npy", labels)
-
-    # Overlays only: trace the boundaries on a label map close to the source
-    # resolution, then downscale the rendered RGBA. On the hero that turns a 5x
-    # NEAREST collapse into thin antialiased rings instead of a yellow mesh.
-    ss = config.OVERLAY_SUPERSAMPLE
-    ov = labels if ss == 1 else load_labels_tiff(raw_dir / "nuclei.tiff", (h * ss, w * ss), rotated)
-    render.downscale_rgba(render.render_outlines(ov), (w, h)).save(
-        out_dir / "outlines.png", optimize=True
+    diameter, tile = args.diameter, args.tile
+    halo = int(max(32, math.ceil(2 * diameter / 16) * 16))
+    it = SegmentationIterator(
+        image, label,
+        channel_selection=config.CHANNEL_DEFS[config.NUCLEI_CHANNEL],
+        axes_order=["y", "x"],
+        consolidation_mode="auto",
     )
-    render.downscale_rgba(render.render_mask(ov), (w, h)).save(
-        out_dir / "mask.png", optimize=True
-    )
-    del ov
-
-    cells = measure.measure_cells(labels, chans["dapi"], chans["lamin_b1"])
-    with open(out_dir / "features.json", "w") as f:
-        json.dump({"features": measure.FEATURE_KEYS, "cells": cells}, f)
-    diameter = round(float(np.median([c["equivalent_diameter"] for c in cells])), 1) if cells else None
-    print(f"[{image_id}] {n_cells} cells, median diameter {diameter}px ({time.time() - t0:.0f}s)")
-
-    # Timed cellpose run — result discarded, only the wall time is displayed
-    # on the TV idle slides ("found N cells — in X s").
-    if skip_benchmark:
-        cellpose_seconds = (prev or {}).get("cellpose_seconds")
-    else:
-        from scientifica.analysis import segment
-
-        tb = time.time()
-        segment.segment(enhanced["dapi"], None, diameter=diameter or 30.0, sensitivity=50)
-        cellpose_seconds = round(time.time() - tb, 1)
-        print(f"[{image_id}] cellpose benchmark: {cellpose_seconds}s")
-
-    return {
-        "id": image_id,
-        "title": config.ROI_NAMES.get(image_id, image_id),
-        "width": w,
-        "height": h,
-        "hero": is_hero,
-        "rotated": rotated,
-        "cell_count": n_cells,
-        "diameter_px": diameter,
-        "cellpose_seconds": cellpose_seconds,
-        "channels": [
-            {
-                "key": key,
-                "label": config.CHANNEL_DEFS[key][0],
-                "color": config.CHANNEL_DEFS[key][1],
-                "url": f"/assets/{image_id}/chan_{key}.png",
-                "raw_range": list(ranges[key]),
-            }
-            for key in chans
-        ],
-        "assets": {
-            "display": f"/assets/{image_id}/display.jpg",
-            "enhanced": f"/assets/{image_id}/enhanced.jpg",
-            "outlines": f"/assets/{image_id}/outlines.png",
-            "mask": f"/assets/{image_id}/mask.png",
-            "labels": f"/assets/{image_id}/labels_rgb.png",
-        },
-        "features_url": f"/assets/{image_id}/features.json",
-    }
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--only", help="comma-separated roi indices, e.g. 0,5")
-    parser.add_argument(
-        "--skip-benchmark",
-        action="store_true",
-        help="keep the previous cellpose_seconds instead of re-timing",
-    )
-    args = parser.parse_args()
-
-    items = discover()
     if args.only:
-        wanted = {int(x) for x in args.only.split(",")}
-        items = [it for it in items if int(it[0].split("_")[1]) in wanted]
-    if not items:
-        raise SystemExit("no source images matched")
+        it = it.product([boxes[args.only].to_roi(ome)])
+    it = it.by_grid(size_x=tile, size_y=tile, tail="balance").with_halo(x=halo, y=halo)
+    total = len(it.rois)
+    if total > 1:
+        block = _stitch_block_size(tile, halo, diameter)
+        it = it.with_stitch(StitchConfig(block_size=block, iou_threshold=0.3, scratch_store=None))
+        _log(f"stitching enabled: block_size={block}")
+    _log(f"segmenting {'ROI ' + args.only if args.only else 'the whole well'}: "
+         f"{total} tiles of {tile}px (+{halo} halo), diameter {diameter}px, niter {args.niter}")
 
+    done = 0
+    lock = threading.Lock()
+    t0 = time.time()
+
+    def tick() -> None:
+        nonlocal done
+        with lock:
+            done += 1
+            n = done
+        el = time.time() - t0
+        eta = el / n * (total - n)
+        _log(f"  tile {n}/{total}  elapsed {el / 60:.1f} min  eta {eta / 60:.1f} min")
+
+    func = segment.make_tile_segmenter(
+        "cellpose", diameter, 50, store.channel_windows(ome)[config.NUCLEI_CHANNEL],
+        config.DEFAULTS["denoise"]["method"], config.DEFAULTS["denoise"]["strength"],
+        on_tile=tick, niter=args.niter,
+    )
+    it.segment(func, mapper=ThreadedMapper(config.CELLPOSE_WORKERS))
+    seconds = round(time.time() - t0, 1)
+    count = int(ome.get_label(config.CURATED_LABEL).get_as_dask().max().compute())
+    _log(f"segmentation done: {count} objects in {seconds / 60:.1f} min")
+
+    bench = json.loads(BENCH_PATH.read_text()) if BENCH_PATH.exists() else {}
+    bench[args.only or "well"] = seconds
     config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
+    BENCH_PATH.write_text(json.dumps(bench, indent=1))
 
-    # Merge into an existing manifest so --only runs don't drop other images
-    existing: dict[str, dict] = {}
-    if config.MANIFEST_PATH.exists():
-        try:
-            with open(config.MANIFEST_PATH) as f:
-                existing = {img["id"]: img for img in json.load(f).get("images", [])}
-        except json.JSONDecodeError:
-            print("warning: existing manifest is corrupt, rebuilding from scratch")
 
-    for image_id, png, raw_dir in items:
-        existing[image_id] = process_image(
-            image_id, png, raw_dir, args.skip_benchmark, existing.get(image_id)
+# --- measure + manifest -----------------------------------------------------
+
+def cmd_measure(args) -> None:
+    ome = store.open_container()
+    boxes = store.roi_boxes(ome)
+    if args.provisional:
+        _log("provisional manifest: no cells (label not measured yet)")
+        cells: list[dict] = []
+    else:
+        if config.CURATED_LABEL not in ome.list_labels():
+            raise SystemExit(f"labels/{config.CURATED_LABEL} missing — run `segment` first")
+        t0 = time.time()
+        table, cells = measure.measure_label(
+            ome, config.CURATED_LABEL, None, config.SEG_DIAMETER_PX,
+            mapper=ThreadedMapper(config.FEATURE_WORKERS),
         )
+        ome.add_table(f"{config.CURATED_LABEL}_features", table, overwrite=True)
+        _log(f"measured {len(cells)} objects ({time.time() - t0:.0f}s)")
+
+    by_roi = measure.split_cells_by_roi(cells, boxes)
+    bench = json.loads(BENCH_PATH.read_text()) if BENCH_PATH.exists() else {}
+    previous = _previous_manifest()
+    c, h, w = store.image_shape_cyx(ome)
+    channels = store.channel_meta_records(ome)
+    pixel_size = float(ome.get_image().pixel_size.x)
+    images = []
+    for rid in store.roi_ids_sorted(boxes):
+        box = boxes[rid]
+        roi_cells = by_roi[rid]
+        cells_url = store.write_cells_json(rid, config.CURATED_LABEL, measure.FEATURE_KEYS, roi_cells)
+        diameter = (
+            round(float(np.median([x["equivalent_diameter"] for x in roi_cells])), 1) if roi_cells else None
+        )
+        prev = previous.get(rid, {})
+        images.append(
+            {
+                "id": rid,
+                "title": config.ROI_NAMES.get(rid, rid),
+                "hero": rid in config.HERO_IDS,
+                "bbox": box.as_dict(),
+                "width": box.width,
+                "height": box.height,
+                "image_width": w,
+                "image_height": h,
+                "image_shape": [c, h, w],
+                "zarr_url": config.zarr_url(),
+                "pixel_size_um": pixel_size,
+                "channels": channels,
+                "labels": {
+                    config.CURATED_LABEL: {
+                        "name": config.CURATED_LABEL,
+                        "url": store.label_url(config.CURATED_LABEL),
+                        "cells_url": cells_url,
+                        "cell_count": len(roi_cells),
+                    }
+                },
+                "cell_count": len(roi_cells),
+                "diameter_px": diameter,
+                "cellpose_seconds": bench.get(rid, prev.get("cellpose_seconds")),
+                "assets": {
+                    "display": f"/assets/{rid}/display.jpg",
+                    "enhanced": f"/assets/{rid}/enhanced.jpg",
+                    "outlines": f"/assets/{rid}/outlines.png",
+                },
+            }
+        )
+        _log(f"  {rid} ({images[-1]['title']}): {len(roi_cells)} cells, median diameter {diameter}px")
 
     defaults = dict(config.DEFAULTS)
-    diameters = [e["diameter_px"] for e in existing.values() if not e["hero"] and e["diameter_px"]]
-    defaults["diameter_px"] = round(float(np.median(diameters)), 1) if diameters else 30.0
+    diameters = [e["diameter_px"] for e in images if not e["hero"] and e["diameter_px"]]
+    defaults["diameter_px"] = round(float(np.median(diameters)), 1) if diameters else config.SEG_DIAMETER_PX
     manifest = {
         "generated": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "defaults": defaults,
-        "images": sorted(existing.values(), key=lambda e: e["id"]),
+        "zarr_url": config.zarr_url(),
+        "image_shape": [c, h, w],
+        "image_width": w,
+        "image_height": h,
+        "pixel_size_um": pixel_size,
+        "channels": channels,
+        "images": images,
     }
-    with open(config.MANIFEST_PATH, "w") as f:
-        json.dump(manifest, f, indent=1)
-    print(f"manifest written: {len(existing)} images, default diameter {defaults['diameter_px']}px")
+    config.MANIFEST_PATH.write_text(json.dumps(manifest, indent=1))
+    _log(f"manifest written: {len(images)} images, default diameter {defaults['diameter_px']}px")
+
+
+def _previous_manifest() -> dict[str, dict]:
+    if not config.MANIFEST_PATH.exists():
+        return {}
+    try:
+        return {img["id"]: img for img in json.loads(config.MANIFEST_PATH.read_text()).get("images", [])}
+    except (json.JSONDecodeError, KeyError):
+        return {}
+
+
+# --- posters ----------------------------------------------------------------
+
+def cmd_posters(args) -> None:
+    ome = store.open_container()
+    boxes = store.roi_boxes(ome)
+    ids = [args.only] if args.only else store.roi_ids_sorted(boxes)
+    has_label = config.CURATED_LABEL in ome.list_labels() and not args.no_outlines
+    for rid in ids:
+        box = boxes[rid]
+        out_dir = config.roi_dir(rid)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        rgb, level = poster_from_pyramid(ome, box, config.DISPLAY_LONG_SIDE)
+        Image.fromarray(rgb).save(out_dir / "enhanced.jpg", quality=90)
+        Image.fromarray(rgb).save(out_dir / "display.jpg", quality=90)
+        if has_label:
+            lab = label_crop_at_level(ome, config.CURATED_LABEL, box, level)
+            outlines = render.render_outlines(lab)
+            render.downscale_rgba(outlines, (rgb.shape[1], rgb.shape[0])).save(
+                out_dir / "outlines.png", optimize=True
+            )
+        _log(f"  {rid}: posters at level {level} ({rgb.shape[1]}x{rgb.shape[0]})")
+
+
+# --- CLI --------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("clean", help="remove unused tables/labels/.DS_Store from the source store")
+    p.add_argument("--backup", action="store_true", help="copy tables/ and labels/ aside first")
+    p.add_argument("--dry-run", action="store_true")
+
+    p = sub.add_parser("segment", help="cellpose-SAM segmentation of the whole well")
+    p.add_argument("--only", help="restrict to one ROI id (dry run), e.g. roi_3")
+    p.add_argument("--skip-segmentation", action="store_true", help="keep an existing labels/nuclei")
+    p.add_argument("--diameter", type=float, default=config.SEG_DIAMETER_PX)
+    p.add_argument("--niter", type=int, default=config.SEG_NITER)
+    p.add_argument("--tile", type=int, default=config.SEG_TILE)
+
+    p = sub.add_parser("measure", help="features table, per-ROI cells json, manifest")
+    p.add_argument("--provisional", action="store_true", help="manifest without measuring (label not ready)")
+
+    p = sub.add_parser("posters", help="per-ROI display/enhanced/outlines posters")
+    p.add_argument("--only")
+    p.add_argument("--no-outlines", action="store_true", help="images only (label not ready yet)")
+
+    p = sub.add_parser("all", help="segment -> measure -> posters")
+    p.add_argument("--skip-segmentation", action="store_true")
+    p.add_argument("--diameter", type=float, default=config.SEG_DIAMETER_PX)
+    p.add_argument("--niter", type=int, default=config.SEG_NITER)
+    p.add_argument("--tile", type=int, default=config.SEG_TILE)
+
+    args = parser.parse_args()
+    if not hasattr(args, "no_outlines"):
+        args.no_outlines = False
+    if not hasattr(args, "provisional"):
+        args.provisional = False
+    config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
+    if args.cmd == "clean":
+        cmd_clean(args)
+    elif args.cmd == "segment":
+        cmd_segment(args)
+    elif args.cmd == "measure":
+        cmd_measure(args)
+    elif args.cmd == "posters":
+        cmd_posters(args)
+    elif args.cmd == "all":
+        args.only = None
+        cmd_segment(args)
+        cmd_measure(args)
+        cmd_posters(args)
 
 
 if __name__ == "__main__":

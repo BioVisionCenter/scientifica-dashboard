@@ -17,34 +17,48 @@ function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 }
 
-/** Single-series per-cell feature scatter (WebGL). Click/hover sync with the viewer. */
+/** Single-series per-cell feature scatter (WebGL). Click/hover sync with the viewer.
+    The plot is (re)built only when the data/axes/theme change; selection and
+    callbacks are applied without a rebuild (26k-point plots are expensive). */
 export function FeatureScatter({ cells, features, xKey, yKey, selectedLabel, onSelect, onHover }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   // colors are snapshotted from CSS vars: re-render the plot on theme change
   const theme = useAppStore((s) => s.theme)
+
+  const callbacks = useRef({ onSelect, onHover })
+  callbacks.current = { onSelect, onHover }
 
   const labelFor = useMemo(() => {
     const m = new Map(features.map((f) => [f.key, f.label]))
     return (k: string) => m.get(k) ?? k
   }, [features])
 
+  const data = useMemo(
+    () => ({ xs: cells.map((c) => c[xKey] as number), ys: cells.map((c) => c[yKey] as number) }),
+    [cells, xKey, yKey],
+  )
+
+  const selIndex = useMemo(() => cells.findIndex((c) => c.label === selectedLabel), [cells, selectedLabel])
+
+  // build / rebuild the plot
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const accent = cssVar('--ngio-accent')
+    const amber = cssVar('--ngio-amber')
     const ink = cssVar('--ngio-ink-2')
     const faint = cssVar('--ngio-muted')
     const line = cssVar('--ngio-line')
     const surface = cssVar('--ngio-surface')
 
-    const selIndex = cells.findIndex((c) => c.label === selectedLabel)
     const dense = cells.length > 2000
+    const { xs, ys } = data
     // `selected`/`unselected` are valid plotly trace props missing from @types/plotly.js
     const trace = {
       type: 'scattergl',
       mode: 'markers',
-      x: cells.map((c) => c[xKey] as number),
-      y: cells.map((c) => c[yKey] as number),
+      x: xs,
+      y: ys,
       customdata: cells.map((c) => c.label),
       marker: {
         size: dense ? 4 : 9,
@@ -53,11 +67,11 @@ export function FeatureScatter({ cells, features, xKey, yKey, selectedLabel, onS
         line: dense ? undefined : { width: 1, color: surface },
       },
       selectedpoints: selIndex >= 0 ? [selIndex] : undefined,
-      selected: { marker: { size: dense ? 10 : 14, color: cssVar('--ngio-amber'), opacity: 1 } },
+      selected: { marker: { size: dense ? 12 : 16, color: amber, opacity: 1 } },
       unselected: { marker: { opacity: dense ? 0.35 : 0.55 } },
       hovertemplate:
         `cell %{customdata}<br>${labelFor(xKey)}: %{x:.3~f}<br>${labelFor(yKey)}: %{y:.3~f}<extra></extra>`,
-    } as Plotly.Data
+    } as unknown as Plotly.Data
 
     const layout: Partial<Plotly.Layout> = {
       paper_bgcolor: 'transparent',
@@ -93,28 +107,32 @@ export function FeatureScatter({ cells, features, xKey, yKey, selectedLabel, onS
       scrollZoom: true,
     })
 
-    const onClick = (ev: Plotly.PlotMouseEvent) => {
-      const label = ev.points?.[0]?.customdata as number | undefined
-      onSelect?.(label ?? null)
+    const labelOf = (ev: Plotly.PlotMouseEvent) => {
+      const cd = ev.points?.[0]?.customdata as number | undefined
+      return cd ?? null
     }
-    const onHoverEv = (ev: Plotly.PlotMouseEvent) => {
-      const label = ev.points?.[0]?.customdata as number | undefined
-      onHover?.(label ?? null)
-    }
-    const onUnhover = () => onHover?.(null)
     const anyEl = el as unknown as {
       on: (e: string, cb: (ev: Plotly.PlotMouseEvent) => void) => void
       removeAllListeners?: (e: string) => void
     }
-    anyEl.on('plotly_click', onClick)
-    anyEl.on('plotly_hover', onHoverEv)
-    anyEl.on('plotly_unhover', onUnhover)
+    anyEl.on('plotly_click', (ev) => callbacks.current.onSelect?.(labelOf(ev)))
+    anyEl.on('plotly_hover', (ev) => callbacks.current.onHover?.(labelOf(ev)))
+    anyEl.on('plotly_unhover', () => callbacks.current.onHover?.(null))
     return () => {
       anyEl.removeAllListeners?.('plotly_click')
       anyEl.removeAllListeners?.('plotly_hover')
       anyEl.removeAllListeners?.('plotly_unhover')
     }
-  }, [cells, xKey, yKey, selectedLabel, labelFor, onSelect, onHover, theme])
+    // selection is applied by the cheap restyle effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cells, data, xKey, yKey, labelFor, theme])
+
+  // selection: cheap restyle instead of a full rebuild
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !(el as unknown as { data?: unknown }).data) return
+    void Plotly.restyle(el, { selectedpoints: [selIndex >= 0 ? [selIndex] : null] } as never)
+  }, [selIndex, data])
 
   useEffect(() => {
     const el = ref.current

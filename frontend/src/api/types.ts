@@ -5,9 +5,9 @@ export interface FeatureKey {
 
 export interface Cell {
   label: number
+  /** level-0 image px */
   centroid: [number, number]
   bbox: [number, number, number, number]
-  polygon: [number, number][]
   area: number
   equivalent_diameter: number
   perimeter: number
@@ -18,20 +18,31 @@ export interface Cell {
   [key: string]: unknown
 }
 
-export interface FeaturesFile {
+export interface CellsFile {
+  label: string
   features: FeatureKey[]
   cells: Cell[]
+}
+
+/** omero display window in raw dtype units */
+export interface OmeroWindow {
+  min: number
+  max: number
+  start: number
+  end: number
 }
 
 export interface ChannelMeta {
   key: string
   label: string
+  /** 'RRGGBB' */
   color: string
-  url: string
-  raw_range?: [number, number]
+  window: OmeroWindow
+  /** index on the zarr c axis */
+  index: number
 }
 
-/** Per-channel viewer settings; min/max window on the 8-bit channel PNG. */
+/** Per-channel viewer settings; min/max window in raw dtype units. */
 export interface ChannelSettings {
   visible: boolean
   color: string
@@ -39,25 +50,46 @@ export interface ChannelSettings {
   max: number
 }
 
+export interface LabelMeta {
+  name: string
+  url: string
+  cells_url: string
+  cell_count: number
+}
+
+/** One dashboard ROI: a bbox of the shared whole-well OME-Zarr. Every
+    coordinate (bbox, cells, regions, view centre) is a GLOBAL level-0 px. */
 export interface ManifestImage {
   id: string
   title: string
+  /** ROI size in level-0 px (== bbox.width/height) */
   width: number
   height: number
+  /** ROI rectangle in global level-0 px of the shared zarr */
+  bbox: RegionRect
+  /** full shared image size, level-0 px */
+  image_width: number
+  image_height: number
+  image_shape?: [number, number, number]
   hero: boolean
-  rotated: boolean
-  cell_count: number
-  diameter_px: number
-  cellpose_seconds: number | null
+  zarr_url: string
+  pixel_size_um: number
+  /** legacy per-ROI store fields */
+  rotated?: boolean
+  levels?: number
+  chunk?: number
   channels: ChannelMeta[]
+  labels: { nuclei: LabelMeta } & Record<string, LabelMeta>
+  cell_count: number
+  /** median nucleus diameter in the ROI (null until measured) */
+  diameter_px: number | null
+  cellpose_seconds: number | null
+  /** posters for the TV idle show / game */
   assets: {
     display: string
     enhanced: string
     outlines: string
-    mask: string
-    labels: string
   }
-  features_url: string
 }
 
 export interface Defaults {
@@ -70,6 +102,11 @@ export interface Defaults {
 export interface Manifest {
   generated: string
   defaults: Defaults
+  zarr_url?: string
+  image_width?: number
+  image_height?: number
+  pixel_size_um?: number
+  channels?: ChannelMeta[]
   images: ManifestImage[]
 }
 
@@ -115,6 +152,7 @@ export interface ExploreParams {
   segmenter: Segmenter
 }
 
+/** global level-0 px of the shared image */
 export interface RegionRect {
   x: number
   y: number
@@ -122,15 +160,48 @@ export interface RegionRect {
   height: number
 }
 
-export interface LiveResult {
-  count: number
+export interface SegmentRequest {
+  image_id: string
   region: RegionRect | null
-  outlines_url: string
-  mask_url: string
-  cells_url: string
+  diameter_px: number
+  sensitivity: number
+  segmenter: Segmenter
+  method?: string
+  strength?: number
 }
 
-/** Normalized viewer state: image-coord centre + zoom relative to fit. */
+export type JobStage = 'queued' | 'preparing' | 'segmenting' | 'measuring' | 'done' | 'error' | 'cancelled'
+
+export interface JobProgress {
+  job_id: string
+  stage: JobStage
+  done: number
+  total: number
+}
+
+export interface LiveResult {
+  job_id: string
+  image_id: string
+  label: string
+  label_url: string
+  cells_url: string
+  region: RegionRect | null
+  count: number
+  seconds: number
+}
+
+export interface Job {
+  status: 'running' | 'done' | 'error' | 'cancelled'
+  stage: JobStage
+  done: number
+  total: number
+  result: LiveResult | null
+  error?: string
+}
+
+export type OverlayMode = 'none' | 'outlines' | 'mask'
+
+/** Normalized viewer state: global image-px centre + zoom relative to the ROI-bbox fit. */
 export interface StageView {
   cx: number
   cy: number
@@ -141,7 +212,7 @@ export interface StageView {
 export interface ExploreState {
   imageId: string
   step: PipelineStep
-  overlay: 'none' | 'outlines' | 'mask'
+  overlay: OverlayMode
   xKey: string
   yKey: string
   selectedLabel: number | null
@@ -151,4 +222,7 @@ export interface ExploreState {
   busy: boolean
   liveResult: LiveResult | null
   view: StageView | null
+  /** drawn bbox for live re-segmentation (null = whole image) */
+  region: RegionRect | null
+  drawMode: boolean
 }

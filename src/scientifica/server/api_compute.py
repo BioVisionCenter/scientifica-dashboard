@@ -1,22 +1,35 @@
-"""Live re-compute: sync enhance, async cellpose segment job (one at a time)."""
+"""Live re-segmentation: one async job at a time, tiled through ngio iterators.
+
+The job segments the ROI's bbox (or the drawn rectangle inside it — both in
+level-0 pixels of the whole well) into a new `live_<roi>_<job>` label of the
+shared OME-Zarr, measures it into a FeatureTable + viewer json, and streams
+tile progress over the websocket hub.
+"""
 
 import asyncio
-import json
-import uuid
+import math
+import threading
+import time
+from typing import Literal
 
-import numpy as np
 from fastapi import APIRouter, HTTPException
-from PIL import Image
+from ngio import SegmentationIterator
+from ngio.iterators import StitchConfig, ThreadedMapper
+from ngio.tables import RoiTable
 from pydantic import BaseModel, Field
+from zarr.storage import MemoryStore
 
 from scientifica import config
-from scientifica.analysis import enhance, measure, render, segment
+from scientifica.analysis import enhance, measure, segment, store
 from scientifica.server.ws import hub
 
 router = APIRouter(prefix="/api/compute")
 
 _job_lock = asyncio.Lock()
 _jobs: dict[str, dict] = {}
+_cancels: dict[str, threading.Event] = {}
+
+MEMORY_SCRATCH_MAX_TILES = 64
 
 
 class Region(BaseModel):
@@ -26,119 +39,168 @@ class Region(BaseModel):
     height: int = Field(gt=0)
 
 
-class EnhanceBody(BaseModel):
+class SegmentBody(BaseModel):
     image_id: str
-    region: Region | None = None
+    region: Region | None = None  # None -> the whole ROI bbox
+    diameter_px: float = Field(gt=4, le=1000)
+    sensitivity: float = Field(default=50, ge=0, le=100)
+    segmenter: Literal["cellpose", "otsu"] = "cellpose"
     method: str = "gaussian"
     strength: float = Field(default=1.5, ge=0, le=10)
-    stretch: tuple[float, float] = (1.0, 99.5)
 
 
-def _load_region(image_id: str, region: Region | None) -> tuple[np.ndarray, np.ndarray]:
-    """(dapi, lamin_b1) grayscale uint8 crops in working-space coordinates."""
-    out = []
-    for key in ("dapi", "lamin_b1"):
-        path = config.DERIVED_DIR / image_id / f"chan_{key}.png"
-        if not path.exists():
-            raise HTTPException(404, f"unknown image {image_id}")
-        img = Image.open(path)
-        if region is not None:
-            max_side = config.LIVE_REGION_MAX
-            if region.width > max_side or region.height > max_side:
-                raise HTTPException(422, f"region larger than {max_side}px cap")
-            img = img.crop((region.x, region.y, region.x + region.width, region.y + region.height))
-        else:
-            if max(img.size) > config.LIVE_REGION_MAX:
-                raise HTTPException(422, "full image exceeds live cap; send a region")
-        out.append(np.asarray(img.convert("L")))
-    return out[0], out[1]
+def _stitch_block_size(diameter_px: float, halo: int) -> int:
+    tile_area = (config.LIVE_TILE + 2 * halo) ** 2
+    cell_area = math.pi * (diameter_px / 2) ** 2
+    return int(max(10_000, 4 * tile_area / cell_area))
 
 
-def _enhance_channels(
-    dapi: np.ndarray, lamin: np.ndarray, method: str, strength: float, stretch: tuple[float, float]
-):
-    if method not in enhance.DENOISE_METHODS:
-        raise HTTPException(422, f"method must be one of {enhance.DENOISE_METHODS}")
-    enh_n = enhance.enhance_channel(dapi, method, strength, *stretch)
-    enh_m = enhance.enhance_channel(lamin, method, strength, *stretch)
-    return enh_n, enh_m
+def _segment_sync(job_id: str, body: SegmentBody, loop: asyncio.AbstractEventLoop) -> dict:
+    """Blocking part of the job (runs in a worker thread)."""
+    t0 = time.time()
+    cancel = _cancels[job_id]
+    ome = store.open_container()
+    image = ome.get_image()
+    box = store.roi_boxes(ome)[body.image_id]
 
-
-# live results land in the served assets dir so every screen (operator AND
-# the mirroring TV) loads the exact same file
-LIVE_DIR = config.DERIVED_DIR / "_live"
-
-
-def _save_live(name: str, payload) -> str:
-    LIVE_DIR.mkdir(parents=True, exist_ok=True)
-    path = LIVE_DIR / name
-    if isinstance(payload, Image.Image):
-        payload.save(path)
+    if body.region is not None:
+        r = body.region
+        area = box.intersect(r.x, r.y, r.width, r.height)
+        if area is None:
+            raise ValueError("the region does not overlap this ROI")
     else:
-        path.write_text(json.dumps(payload))
-    _prune_live()
-    return f"/assets/_live/{name}"
+        area = box
+    cap = config.LIVE_MAX_PIXELS[body.segmenter]
+    if area.pixels > cap:
+        raise ValueError(
+            f"{body.segmenter} on {area.pixels / 1e6:.0f} MP exceeds the {cap / 1e6:.0f} MP live cap; "
+            "draw a smaller region"
+        )
+    region_roi = area.to_roi(ome, "live_region")
 
+    label_name = store.live_label_name(body.image_id, job_id)
+    live = ome.derive_label(
+        label_name,
+        channels_policy="squeeze",
+        dtype="uint32",
+        chunks=store.label_chunks(ome),
+        overwrite=True,
+    )
 
-def _prune_live(keep: int = 32) -> None:
-    files = sorted(LIVE_DIR.glob("*"), key=lambda p: p.stat().st_mtime, reverse=True)
-    for stale in files[keep:]:
-        stale.unlink(missing_ok=True)
+    it = SegmentationIterator(
+        image, live,
+        channel_selection=config.CHANNEL_DEFS[config.NUCLEI_CHANNEL],
+        axes_order=["y", "x"],
+        consolidation_mode="auto",
+    ).product([region_roi])
+    halo = int(max(32, math.ceil(2 * body.diameter_px / 16) * 16))
+    it = it.by_grid(size_x=config.LIVE_TILE, size_y=config.LIVE_TILE, tail="balance").with_halo(
+        x=halo, y=halo
+    )
+    total = len(it.rois)
+    if total > 1:
+        scratch = MemoryStore() if total <= MEMORY_SCRATCH_MAX_TILES else None
+        it = it.with_stitch(
+            StitchConfig(
+                block_size=_stitch_block_size(body.diameter_px, halo),
+                iou_threshold=0.3,
+                scratch_store=scratch,
+            )
+        )
 
+    done = 0
+    count_lock = threading.Lock()
 
-SEGMENTERS = ("cellpose", "otsu")
+    def emit(stage: str) -> None:
+        payload = {"job_id": job_id, "stage": stage, "done": done, "total": total}
+        _jobs[job_id].update(stage=stage, done=done, total=total)
+        asyncio.run_coroutine_threadsafe(hub.broadcast("job:progress", payload), loop)
 
+    def tick() -> None:
+        nonlocal done
+        with count_lock:
+            done += 1
+        emit("segmenting")
 
-class SegmentBody(EnhanceBody):
-    diameter_px: float = Field(gt=4, le=500)
-    sensitivity: float = Field(default=50, ge=0, le=100)
-    segmenter: str = "cellpose"
+    emit("segmenting")
+    func = segment.make_tile_segmenter(
+        body.segmenter,
+        body.diameter_px,
+        body.sensitivity,
+        store.channel_windows(ome)[config.NUCLEI_CHANNEL],
+        body.method,
+        body.strength,
+        on_tile=tick,
+        cancel=cancel,
+    )
+    it.segment(func, mapper=ThreadedMapper(segment.workers_for(body.segmenter)))
+
+    if cancel.is_set():
+        raise segment.JobCancelled()
+    emit("measuring")
+    table, cells = measure.measure_label(
+        ome, label_name, region_roi, body.diameter_px,
+        bounds=(area.x, area.y, area.x1, area.y1),
+        mapper=ThreadedMapper(config.FEATURE_WORKERS),
+    )
+    ome.add_table(f"{label_name}_features", table, overwrite=True)
+    ome.add_table(f"{label_name}_region", RoiTable(rois=[region_roi]), overwrite=True)
+    cells_url = store.write_cells_json(body.image_id, label_name, measure.FEATURE_KEYS, cells)
+    store.prune_live(ome, body.image_id)
+    return {
+        "job_id": job_id,
+        "image_id": body.image_id,
+        "label": label_name,
+        "label_url": store.label_url(label_name),
+        "cells_url": cells_url,
+        "region": area.as_dict(),
+        "count": len(cells),
+        "seconds": round(time.time() - t0, 1),
+    }
 
 
 async def _run_segment_job(job_id: str, body: SegmentBody) -> None:
-    async def progress(stage: str) -> None:
-        _jobs[job_id]["stage"] = stage
-        await hub.broadcast("job:progress", {"job_id": job_id, "stage": stage})
-
+    loop = asyncio.get_running_loop()
     try:
-        dapi, lamin = _load_region(body.image_id, body.region)
-        await progress("enhancing")
-        enh_n, enh_m = await asyncio.to_thread(
-            _enhance_channels, dapi, lamin, body.method, body.strength, body.stretch
-        )
-        await progress("segmenting")
-        # live segmentation runs on the DAPI channel alone (nuclei labels)
-        seg_fn = segment.segment if body.segmenter == "cellpose" else segment.segment_otsu
-        labels = await asyncio.to_thread(
-            seg_fn, enh_n, None, body.diameter_px, body.sensitivity
-        )
-        await progress("measuring")
-        cells = await asyncio.to_thread(measure.measure_cells, labels, enh_n, enh_m)
-        result = {
-            "count": int(labels.max()),
-            "region": body.region.model_dump() if body.region else None,
-            "outlines_url": _save_live(f"{job_id}_outlines.png", render.render_outlines(labels)),
-            "mask_url": _save_live(f"{job_id}_mask.png", render.render_mask(labels)),
-            "cells_url": _save_live(f"{job_id}_cells.json", cells),
-        }
+        result = await asyncio.to_thread(_segment_sync, job_id, body, loop)
         _jobs[job_id].update(status="done", stage="done", result=result)
-        await hub.broadcast("job:done", {"job_id": job_id, "count": result["count"]})
+        await hub.broadcast("job:done", result)
+    except segment.JobCancelled:
+        _jobs[job_id].update(status="cancelled", stage="cancelled")
+        await asyncio.to_thread(_discard_live, body.image_id, job_id)
+        await hub.broadcast("job:error", {"job_id": job_id, "stage": "cancelled", "error": "cancelled"})
     except Exception as exc:  # surface errors to the UI instead of hanging the job
-        _jobs[job_id].update(status="error", error=str(exc))
-        await hub.broadcast("job:error", {"job_id": job_id, "error": str(exc)})
+        _jobs[job_id].update(status="error", stage="error", error=str(exc))
+        await asyncio.to_thread(_discard_live, body.image_id, job_id)
+        await hub.broadcast("job:error", {"job_id": job_id, "stage": "error", "error": str(exc)})
     finally:
+        _cancels.pop(job_id, None)
         _job_lock.release()
+
+
+def _discard_live(image_id: str, job_id: str) -> None:
+    try:
+        store.discard_live(store.open_container(), image_id, store.live_label_name(image_id, job_id))
+    except Exception:
+        pass
 
 
 @router.post("/segment")
 async def compute_segment(body: SegmentBody):
-    if body.segmenter not in SEGMENTERS:
-        raise HTTPException(422, f"segmenter must be one of {SEGMENTERS}")
+    if body.method not in enhance.DENOISE_METHODS:
+        raise HTTPException(422, f"method must be one of {enhance.DENOISE_METHODS}")
+    try:
+        boxes = store.roi_boxes(store.open_container())
+    except FileNotFoundError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    if body.image_id not in boxes:
+        raise HTTPException(404, f"unknown ROI {body.image_id}")
     if _job_lock.locked():
         raise HTTPException(409, "a segmentation is already running")
     await _job_lock.acquire()
-    job_id = uuid.uuid4().hex[:12]
-    _jobs[job_id] = {"status": "running", "stage": "queued", "result": None}
+    job_id = f"{int(time.time() * 1000):x}"  # time-sortable: pruning keeps the newest
+    _jobs[job_id] = {"status": "running", "stage": "queued", "done": 0, "total": 0, "result": None}
+    _cancels[job_id] = threading.Event()
     asyncio.create_task(_run_segment_job(job_id, body))
     return {"job_id": job_id}
 
@@ -148,3 +210,13 @@ async def job_status(job_id: str):
     if job_id not in _jobs:
         raise HTTPException(404, "unknown job")
     return _jobs[job_id]
+
+
+@router.post("/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    if job_id not in _jobs:
+        raise HTTPException(404, "unknown job")
+    ev = _cancels.get(job_id)
+    if ev is not None:
+        ev.set()
+    return {"ok": True}

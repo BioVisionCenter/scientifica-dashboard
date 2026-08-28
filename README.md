@@ -9,20 +9,27 @@ leaderboard.
 ## One-time preparation
 
 ```bash
-uv sync                                          # installs cellpose, fastapi, everything
-uv run scientifica-ingest "~/Downloads/Game Images"  # normalize the delivery into data/source/
-uv run scientifica-pipeline                      # derive channels, labels, features, benchmarks
+uv sync                                          # installs cellpose-SAM (cellpose 4), ngio, fastapi, everything
+uv run scientifica-pipeline clean --backup       # strip unused tables/labels from the source OME-Zarr (once)
+uv run scientifica-pipeline all                  # cellpose-SAM whole-well segmentation -> features -> manifest -> posters
 cd frontend && npm install && npm run build
 ```
 
-Source data lives in `data/source/` (all of `data/` is gitignored):
-`napari/` (2-color renders for the game/TV), `raw/roi_NN/` (per-channel uint16
-tiffs + curated `nuclei` labels for Explore), and `waldog/` (3-color renders for
-the waldog prints). The pipeline uses the provided nuclei labels — no offline
-segmentation — but times one cellpose run per image (`cellpose_seconds`, shown
-on the TV idle slides); `--skip-benchmark` keeps previous timings on re-runs.
-ROI display names come from `ROI_NAMES` in `src/scientifica/config.py`
-(transcribed from ROI_naming.xlsx).
+The single source of truth is the whole-well OME-Zarr
+`data/source/Cardiomyocyte_mip_scientifica_2026.zarr` (all of `data/` is
+gitignored): a 3-channel (DAPI, nanog, Lamin B1) 20480×19440 px pyramid at
+0.1625 µm/px. It is served as-is under `/assets/source/…`; the dashboard ROIs
+are the rows of its `tables/scientifica_ROI_table_v3` (ids `roi_0`…`roi_13`,
+display names from `ROI_NAMES` in `src/scientifica/config.py`, transcribed from
+ROI_naming.xlsx), and every coordinate the app uses is a level-0 pixel of that
+image. The pipeline writes the segmentation into the store (`labels/nuclei`,
+`tables/nuclei_features`) with ngio's tiled iterators + cellpose-SAM at native
+resolution (~25 min on an M-series GPU; `segment --only roi_3` is a 20 s dry
+run) and derives per-ROI `data/derived/roi_N/{cells_nuclei.json, display.jpg,
+enhanced.jpg, outlines.png}` plus `manifest.json`. `cell_count` per ROI (the
+game's ground truth) is the number of segmented nuclei whose centroid lies in
+the ROI. `data/source/waldog/` (3-color renders) is only used by the waldog
+prints.
 
 ## Running at the booth
 

@@ -4,6 +4,13 @@ import { SINGLE_LANGS, type DisplayLang, type TvLang } from '../copy'
 
 type ExploreSyncState = Partial<ExploreState>
 
+export interface JobStageInfo {
+  jobId: string
+  stage: string
+  done: number
+  total: number
+}
+
 interface AppState {
   connected: boolean
   scene: Scene
@@ -14,7 +21,7 @@ interface AppState {
   entries: Entry[]
   reveal: RevealPayload | null
   exploreSync: ExploreSyncState | null
-  jobStage: { jobId: string; stage: string } | null
+  jobStage: JobStageInfo | null
   round: GameRound | null
 
   setConnected: (v: boolean) => void
@@ -25,7 +32,7 @@ interface AppState {
   setEntries: (entries: Entry[]) => void
   setReveal: (r: RevealPayload | null) => void
   setExploreSync: (s: ExploreSyncState) => void
-  setJobStage: (s: { jobId: string; stage: string } | null) => void
+  setJobStage: (s: JobStageInfo | null) => void
   setRound: (round: GameRound | null) => void
 }
 
