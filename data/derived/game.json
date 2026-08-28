@@ -4,21 +4,21 @@
   {
    "id": "roi_0",
    "name": "Field 1",
-   "true_count": 148,
+   "true_count": 157,
    "cellpose_count": 148,
    "cellpose_seconds": 7.0
   },
   {
    "id": "roi_2",
    "name": "Field 2",
-   "true_count": 159,
+   "true_count": 162,
    "cellpose_count": 159,
    "cellpose_seconds": 3.7
   },
   {
    "id": "roi_3",
    "name": "Field 3",
-   "true_count": 131,
+   "true_count": 133,
    "cellpose_count": 131,
    "cellpose_seconds": 3.6
   },
