@@ -6,9 +6,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
 
 from scientifica import config
-from scientifica.analysis import segment
+from scientifica.analysis import segment, store
 from scientifica.server import api_compute, api_explore, api_game, db
 from scientifica.server.ws import ws_endpoint
 
@@ -18,6 +19,8 @@ FRONTEND_DIST = config.PROJECT_ROOT / "frontend" / "dist"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init()
+    # fail fast if the whole-well store or its ROI table is missing
+    store.roi_boxes(store.open_container())
     # Warm the cellpose model off the event loop so the first live re-run is fast
     asyncio.get_event_loop().run_in_executor(None, segment.warmup)
     yield
@@ -35,8 +38,38 @@ async def ws(websocket: WebSocket, role: str = "tv"):
     await ws_endpoint(websocket, role)
 
 
+
+class DerivedStaticFiles(StaticFiles):
+    """Static mount for data/derived and data/source with cache policy by kind:
+
+    - image pyramid chunks (`<zarr>/<level>/…`): cached for a day — they only
+      change on a deliberate `rechunk`, and every chunk is small now
+    - `labels/live_*` chunks: immutable (unique name per job)
+    - everything rewritten in place under the same URL (`labels/nuclei`, zarr
+      metadata, manifest / cells json, posters): revalidate (ETag -> 304)
+    """
+
+    def file_response(self, full_path, stat_result, scope, status_code=200) -> Response:
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        path = str(full_path)
+        name = Path(path).name
+        zarr_rel = path.split(".zarr/", 1)[1] if ".zarr/" in path else None
+        if name.startswith(".z") or name.endswith((".json", ".jpg", ".png")) or zarr_rel is None:
+            response.headers["Cache-Control"] = "no-cache"
+        elif zarr_rel.startswith("labels/live_"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        elif zarr_rel.startswith("labels/") or zarr_rel.startswith("tables/"):
+            response.headers["Cache-Control"] = "no-cache"
+        else:  # image pyramid chunk
+            response.headers["Cache-Control"] = "public, max-age=86400"
+        return response
+
+
 config.DERIVED_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/assets", StaticFiles(directory=config.DERIVED_DIR), name="assets")
+# the whole-well OME-Zarr is served straight from data/source (mount order matters:
+# Starlette matches the first prefix, so /assets/source must precede /assets)
+app.mount("/assets/source", DerivedStaticFiles(directory=config.SOURCE_DIR), name="source")
+app.mount("/assets", DerivedStaticFiles(directory=config.DERIVED_DIR), name="assets")
 
 if FRONTEND_DIST.exists():  # production: serve the built frontend with SPA fallback
     from fastapi.responses import FileResponse

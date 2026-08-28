@@ -3,17 +3,19 @@ import { useAppStore } from '../stores/appStore'
 import { api } from '../api/client'
 import type {
   Cell,
+  CellsFile,
   ChannelSettings,
   ExploreParams,
   ExploreState,
-  FeaturesFile,
   LiveResult,
   Manifest,
   ManifestImage,
+  OverlayMode,
   PipelineStep,
+  RegionRect,
   StageView,
 } from '../api/types'
-import { ImageStage, type OverlayMode, type Region, type StageApi } from '../components/viewer/ImageStage'
+import { OmeZarrStage, type StageApi } from '../viewer/OmeZarrStage'
 import { FeatureScatter } from '../components/scatter/FeatureScatter'
 import { ParamPanel } from '../components/params/ParamPanel'
 import { ChannelPanel, defaultChannelSettings } from '../components/params/ChannelPanel'
@@ -24,7 +26,7 @@ const STEPS: { key: PipelineStep; label: string; blurb: string }[] = [
   { key: 'measured', label: '3 · Measure', blurb: 'Numbers for every single cell' },
 ]
 
-const JOB_STAGES = ['enhancing', 'segmenting', 'measuring']
+const JOB_STAGES = ['segmenting', 'measuring']
 
 function paramsFrom(m: Manifest): ExploreParams {
   return {
@@ -48,6 +50,8 @@ function defaultState(m: Manifest): ExploreState {
     busy: false,
     liveResult: null,
     view: null,
+    region: null,
+    drawMode: false,
   }
 }
 
@@ -72,13 +76,15 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
   const [params, setParams] = useState<ExploreParams | null>(null)
   const [channelSettings, setChannelSettings] = useState<Record<string, ChannelSettings>>({})
   const [busy, setBusy] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(null)
   const [liveResult, setLiveResult] = useState<LiveResult | null>(null)
   const [view, setView] = useState<StageView | null>(null)
+  const [region, setRegion] = useState<RegionRect | null>(null)
+  const [drawMode, setDrawMode] = useState(false)
   const [sendToTv, setSendToTv] = useState(false)
 
-  const [viewport, setViewport] = useState<Region | null>(null)
-  const [features, setFeatures] = useState<FeaturesFile | null>(null)
-  const [liveCellsRaw, setLiveCellsRaw] = useState<Cell[] | null>(null)
+  const [cellsFile, setCellsFile] = useState<CellsFile | null>(null)
+  const [liveCells, setLiveCells] = useState<Cell[] | null>(null)
 
   const stageRef = useRef<StageApi | null>(null)
 
@@ -108,10 +114,12 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       busy,
       liveResult,
       view,
+      region,
+      drawMode,
     }
   }, [
-    manifest, mirror, sync, imageId, step, overlay, xKey, yKey,
-    selectedLabel, hoveredLabel, params, channelSettings, busy, liveResult, view,
+    manifest, mirror, sync, imageId, step, overlay, xKey, yKey, selectedLabel, hoveredLabel,
+    params, channelSettings, busy, liveResult, view, region, drawMode,
   ])
 
   const image: ManifestImage | null = useMemo(
@@ -121,24 +129,26 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
 
   // per-image data (both modes)
   useEffect(() => {
-    setFeatures(null)
-    if (image) api.features(image.features_url).then(setFeatures)
+    setCellsFile(null)
+    if (image) api.cells(image.labels.nuclei.cells_url).then(setCellsFile).catch(console.error)
     if (!mirror) {
       setSelectedLabel(null)
       setHoveredLabel(null)
       setLiveResult(null)
-      setViewport(null)
+      setRegion(null)
+      setDrawMode(false)
       setView(null)
       if (image) setChannelSettings(defaultChannelSettings(image.channels))
-      if (image?.hero) setParams((p) => (p ? { ...p, diameter_px: Math.round(image.diameter_px) } : p))
+      const heroDiameter = image?.hero ? image.diameter_px : null
+      if (heroDiameter) setParams((p) => (p ? { ...p, diameter_px: Math.round(heroDiameter) } : p))
     }
   }, [image?.id])
 
   // live cells follow the live result (both modes fetch the same server file)
   useEffect(() => {
-    setLiveCellsRaw(null)
+    setLiveCells(null)
     const url = S?.liveResult?.cells_url
-    if (url) api.liveCells(url).then(setLiveCellsRaw).catch(console.error)
+    if (url) api.cells(url).then((f) => setLiveCells(f.cells)).catch(console.error)
   }, [S?.liveResult?.cells_url])
 
   // operator: ALWAYS publish the full state (throttled), independent of the
@@ -175,41 +185,27 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     [mirror],
   )
 
-  const cells: Cell[] = features?.cells ?? []
+  // ESC leaves draw mode and clears the drawn region (operator only)
+  useEffect(() => {
+    if (mirror) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return
+      setDrawMode(false)
+      setRegion(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mirror])
 
-  // live results are region-relative: offset into image coordinates
-  const liveCells: Cell[] | null = useMemo(() => {
-    const region = S?.liveResult?.region
-    if (!liveCellsRaw || !region) return null
-    return liveCellsRaw.map((c) => ({
-      ...c,
-      centroid: [c.centroid[0] + region.x, c.centroid[1] + region.y] as [number, number],
-      bbox: [c.bbox[0] + region.x, c.bbox[1] + region.y, c.bbox[2] + region.x, c.bbox[3] + region.y] as [
-        number, number, number, number,
-      ],
-      polygon: c.polygon.map((p) => [p[0] + region.x, p[1] + region.y] as [number, number]),
-    }))
-  }, [liveCellsRaw, S?.liveResult?.region])
-
+  const cells: Cell[] = cellsFile?.cells ?? []
   const scatterCells = liveCells ?? cells
-
-  const cappedRegion = useCallback((): Region | null => {
-    if (!image) return null
-    // until the user pans/zooms there is no viewport report: use the image centre
-    const vp = viewport ?? { x: 0, y: 0, width: image.width, height: image.height }
-    const cap = 1024
-    const w = Math.min(vp.width, cap, image.width)
-    const h = Math.min(vp.height, cap, image.height)
-    const x = Math.max(0, Math.min(image.width - w, vp.x + Math.floor((vp.width - w) / 2)))
-    const y = Math.max(0, Math.min(image.height - h, vp.y + Math.floor((vp.height - h) / 2)))
-    return { x, y, width: w, height: h }
-  }, [viewport, image])
 
   const runSegment = async () => {
     if (!image || !params) return
-    const region = cappedRegion()
-    if (!region) return
     setBusy(true)
+    setDrawMode(false)
     try {
       const { job_id } = await api.computeSegment({
         image_id: image.id,
@@ -218,16 +214,19 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
         sensitivity: params.sensitivity,
         segmenter: params.segmenter,
       })
+      setJobId(job_id)
       const poll = async () => {
         const status = await api.jobStatus(job_id)
-        if (status.status === 'done') {
+        if (status.status === 'done' && status.result) {
           setSelectedLabel(null)
           setHoveredLabel(null)
-          setLiveResult(status.result as LiveResult)
+          setLiveResult(status.result)
           setBusy(false)
-        } else if (status.status === 'error') {
-          console.error('segment job failed:', status.error)
+          setJobId(null)
+        } else if (status.status === 'error' || status.status === 'cancelled') {
+          if (status.status === 'error') console.error('segment job failed:', status.error)
           setBusy(false)
+          setJobId(null)
         } else {
           setTimeout(poll, 600)
         }
@@ -236,16 +235,23 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     } catch (err) {
       console.error(err)
       setBusy(false)
+      setJobId(null)
     }
+  }
+
+  const cancelSegment = () => {
+    if (jobId) void api.cancelJob(jobId).catch(console.error)
   }
 
   const reset = () => {
     if (!manifest || !image) return
     setParams({
       ...paramsFrom(manifest),
-      diameter_px: Math.round(image.hero ? image.diameter_px : manifest.defaults.diameter_px),
+      diameter_px: Math.round((image.hero && image.diameter_px) || manifest.defaults.diameter_px),
     })
     setLiveResult(null)
+    setRegion(null)
+    setDrawMode(false)
     setSelectedLabel(null)
     setHoveredLabel(null)
   }
@@ -262,6 +268,10 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
     [mirror, liveCells, cells],
   )
 
+  const onRegionDraft = useCallback((r: RegionRect | null) => setRegion(r), [])
+  const onRegionCommit = useCallback((r: RegionRect | null) => setRegion(r), [])
+  const onExitDrawMode = useCallback(() => setDrawMode(false), [])
+
   if (!manifest || !image || !S) {
     return (
       <div className="flex h-full items-center justify-center" style={{ color: 'var(--ngio-muted)' }}>
@@ -272,27 +282,33 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
 
   const isMeasured = S.step === 'measured'
   const showsSegmentation = S.step === 'segmented' || S.step === 'measured'
+  const liveCount = S.liveResult?.count ?? null
 
   const viewerCard = (
     <div className="card relative min-h-0 overflow-hidden">
-      <ImageStage
+      <OmeZarrStage
+        key={image.id}
         image={image}
         step={S.step}
         overlay={S.overlay}
-        cells={scatterCells}
         channelSettings={S.channels}
         selectedLabel={S.selectedLabel}
         hoveredLabel={S.hoveredLabel}
         liveResult={S.liveResult}
+        region={S.region}
+        drawMode={S.drawMode}
         interactive={!mirror}
         apiRef={mirror ? undefined : stageRef}
         view={mirror ? S.view : undefined}
         onViewChange={mirror ? undefined : setView}
-        onCellClick={(l) => !mirror && showsSegmentation && !S.liveResult && setSelectedLabel(l)}
-        onViewportChange={mirror ? undefined : setViewport}
+        onCellHover={mirror || !showsSegmentation ? undefined : setHoveredLabel}
+        onCellClick={mirror || !showsSegmentation ? undefined : setSelectedLabel}
+        onRegionDraft={mirror ? undefined : onRegionDraft}
+        onRegionCommit={mirror ? undefined : onRegionCommit}
+        onExitDrawMode={mirror ? undefined : onExitDrawMode}
       />
       {showsSegmentation && (
-        <div className="absolute top-3 left-3 flex gap-1.5">
+        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
           {(['outlines', 'mask', 'none'] as OverlayMode[]).map((o) => (
             <button
               key={o}
@@ -303,24 +319,63 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
               {o}
             </button>
           ))}
+          <span className="mx-1 self-center opacity-40">|</span>
+          <button
+            className={`btn ${S.drawMode ? 'btn-active' : ''}`}
+            style={{ padding: '5px 10px', fontSize: 12.5 }}
+            onClick={() => setDrawMode(!S.drawMode)}
+            title="Drag a rectangle on the image; the next live run only covers it (ESC to clear)"
+          >
+            {S.drawMode ? 'drawing… (drag)' : '▭ draw region'}
+          </button>
+          {S.region && (
+            <button
+              className="btn"
+              style={{ padding: '5px 10px', fontSize: 12.5 }}
+              onClick={() => {
+                setRegion(null)
+                setDrawMode(false)
+              }}
+            >
+              clear region
+            </button>
+          )}
           <span
             className="self-center rounded-md px-2.5 py-1 font-mono text-[13px]"
             style={{ background: 'var(--ccc-scrim)', color: 'var(--ccc-cyan-bright)' }}
           >
-            {image.cell_count.toLocaleString()} cells
+            {(liveCount ?? image.cell_count).toLocaleString()} cells{liveCount !== null ? ' · live' : ''}
           </span>
         </div>
       )}
-      {S.busy && showsSegmentation && <JobOverlay stage={jobStage?.stage ?? null} />}
+      {showsSegmentation && S.liveResult && !S.busy && (
+        <div
+          className="card absolute top-3 right-3 flex items-baseline gap-3 px-4 py-2"
+          style={{ borderColor: 'var(--ccc-magenta)' }}
+        >
+          <span className="eyebrow" style={{ color: 'var(--ccc-magenta-ink)' }}>
+            live · {S.params.segmenter === 'cellpose' ? 'cellpose-SAM' : 'Otsu'}
+          </span>
+          <span className="font-display font-bold" style={{ fontSize: 24, lineHeight: 1, color: 'var(--ngio-ink)' }}>
+            {S.liveResult.count.toLocaleString()} cells
+          </span>
+          <span className="font-mono" style={{ fontSize: 14, color: 'var(--ngio-ink-2)' }}>
+            in {S.liveResult.seconds < 60 ? `${S.liveResult.seconds} s` : `${(S.liveResult.seconds / 60).toFixed(1)} min`}
+          </span>
+        </div>
+      )}
+      {S.busy && showsSegmentation && (
+        <JobOverlay
+          stage={jobStage?.stage ?? null}
+          done={jobStage?.done ?? 0}
+          total={jobStage?.total ?? 0}
+        />
+      )}
     </div>
   )
 
   const channelCard = S.step === 'raw' && image.channels.length > 0 && (
-    <ChannelPanel
-      channels={image.channels}
-      settings={S.channels}
-      onChange={setChannelSettings}
-    />
+    <ChannelPanel channels={image.channels} settings={S.channels} onChange={setChannelSettings} />
   )
 
   const paramCard = (
@@ -330,14 +385,18 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       step={S.step}
       busy={S.busy}
       busyStage={jobStage?.stage ?? null}
-      liveCount={S.liveResult?.count ?? null}
+      progress={jobStage ? { done: jobStage.done, total: jobStage.total } : null}
+      liveCount={liveCount}
+      liveSeconds={S.liveResult?.seconds ?? null}
+      region={S.region}
       onChange={setParams}
       onRunSegment={runSegment}
+      onCancel={cancelSegment}
       onReset={reset}
     />
   )
 
-  const scatterCard = features && isMeasured && (
+  const scatterCard = cellsFile && isMeasured && (
     <div className="card flex min-h-0 flex-col gap-2 p-4">
       <div className="flex items-center justify-between">
         <span className="eyebrow">every dot is one cell — click one</span>
@@ -352,14 +411,14 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       </div>
       <div className="flex gap-2">
         <select className="input flex-1" value={S.xKey} onChange={(e) => setXKey(e.target.value)}>
-          {features.features.map((f) => (
+          {cellsFile.features.map((f) => (
             <option key={f.key} value={f.key}>
               x: {f.label}
             </option>
           ))}
         </select>
         <select className="input flex-1" value={S.yKey} onChange={(e) => setYKey(e.target.value)}>
-          {features.features.map((f) => (
+          {cellsFile.features.map((f) => (
             <option key={f.key} value={f.key}>
               y: {f.label}
             </option>
@@ -369,7 +428,7 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
       <div className="min-h-0 flex-1">
         <FeatureScatter
           cells={scatterCells}
-          features={features.features}
+          features={cellsFile.features}
           xKey={S.xKey}
           yKey={S.yKey}
           selectedLabel={S.selectedLabel}
@@ -441,8 +500,9 @@ export default function Explore({ mirror = false }: { mirror?: boolean }) {
   )
 }
 
-function JobOverlay({ stage }: { stage: string | null }) {
+function JobOverlay({ stage, done, total }: { stage: string | null; done: number; total: number }) {
   const activeIdx = stage ? JOB_STAGES.indexOf(stage) : -1
+  const pct = total > 0 ? Math.round((100 * done) / total) : null
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center" style={{ background: 'var(--ccc-scrim-weak)' }}>
       <div className="card flex flex-col items-center gap-3 px-8 py-6">
@@ -451,8 +511,14 @@ function JobOverlay({ stage }: { stage: string | null }) {
           style={{ borderColor: 'var(--ccc-cyan)', borderTopColor: 'transparent' }}
         />
         <span className="font-mono text-sm" style={{ color: 'var(--ccc-cyan-ink)' }}>
-          {stage ?? 'starting'}…
+          {stage ?? 'starting'}
+          {stage === 'segmenting' && total > 1 ? ` · tile ${done}/${total}` : ''}…
         </span>
+        {pct !== null && stage === 'segmenting' && total > 1 && (
+          <div className="h-1.5 w-40 overflow-hidden rounded-full" style={{ background: 'var(--ngio-line-strong)' }}>
+            <div className="h-full" style={{ width: `${pct}%`, background: 'var(--ccc-cyan)' }} />
+          </div>
+        )}
         <div className="flex gap-2">
           {JOB_STAGES.map((s, i) => (
             <span

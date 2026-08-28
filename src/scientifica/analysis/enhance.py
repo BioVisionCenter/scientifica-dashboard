@@ -68,3 +68,14 @@ def enhance_channel(
     f = to_float01(chan)
     f = denoise(f, method, strength)
     return stretch(f, p_low, p_high)
+
+
+def enhance_patch(patch: np.ndarray, lo: float, hi: float, method: str, strength: float) -> np.ndarray:
+    """Raw uint16 tile -> denoised float01 with a FIXED window (lo, hi).
+
+    Live segmentation runs tile by tile; a per-tile percentile stretch would
+    make neighbouring tiles inconsistent, so the window comes from the
+    channel's omero metadata instead.
+    """
+    f = np.clip((patch.astype(np.float32) - lo) / max(1.0, hi - lo), 0.0, 1.0)
+    return denoise(f, method, strength)

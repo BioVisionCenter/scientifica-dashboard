@@ -1,0 +1,64 @@
+{
+ "roi": 1,
+ "pets": [
+  {
+   "pet": "blackdog",
+   "mode": "behind",
+   "flip": false,
+   "rotate_deg": -4.3,
+   "alpha": 0.9,
+   "color_blend": 0.2,
+   "size_mult": 1.1,
+   "cover": 0.46,
+   "cx": 5157,
+   "cy": 2782,
+   "saturation": 1.05
+  },
+  {
+   "pet": "cat",
+   "mode": "behind",
+   "flip": true,
+   "rotate_deg": -7.3,
+   "alpha": 0.9,
+   "color_blend": 0.2,
+   "size_mult": 1.04,
+   "cover": 0.38,
+   "cx": 784,
+   "cy": 3800,
+   "saturation": 1.05
+  },
+  {
+   "pet": "chicken",
+   "mode": "top",
+   "flip": true,
+   "rotate_deg": -8.3,
+   "alpha": 0.88,
+   "color_blend": 0.18,
+   "size_mult": 1.07,
+   "cx": 6714,
+   "cy": 4675
+  },
+  {
+   "pet": "cockatiel",
+   "mode": "top",
+   "flip": false,
+   "rotate_deg": 0.3,
+   "alpha": 0.9,
+   "color_blend": 0.17,
+   "size_mult": 1.14,
+   "cx": 3026,
+   "cy": 766
+  },
+  {
+   "pet": "spaniel",
+   "mode": "inside",
+   "flip": true,
+   "rotate_deg": 8.3,
+   "alpha": 0.86,
+   "color_blend": 0.2,
+   "cx": 4655,
+   "cy": 4262,
+   "saturation": 1.15
+  }
+ ]
+}

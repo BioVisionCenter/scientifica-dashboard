@@ -1,9 +1,14 @@
 """Segmentation backends: cellpose (AI) and Otsu (classic), same label output."""
 
 import os
+import threading
+from collections.abc import Callable
 from functools import lru_cache
 
 import numpy as np
+
+from scientifica import config
+from scientifica.analysis.enhance import enhance_patch
 
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
@@ -19,9 +24,12 @@ def sensitivity_to_cellprob(sensitivity: float) -> float:
 
 @lru_cache(maxsize=1)
 def get_model():
+    """cellpose-SAM (cellpose 4). One shared model: keep CELLPOSE_WORKERS = 1."""
     from cellpose import models
 
-    return models.CellposeModel(model_type="cyto3", gpu=True)
+    return models.CellposeModel(
+        gpu=True, pretrained_model=config.CPSAM_MODEL, use_bfloat16=config.CPSAM_BF16
+    )
 
 
 def warmup() -> None:
@@ -35,25 +43,29 @@ def segment(
     membrane: np.ndarray | None,
     diameter: float,
     sensitivity: float = 50,
+    niter: int | None = None,
 ) -> np.ndarray:
-    """Run cellpose on the nuclei channel (grayscale; membrane optionally added
-    as the cyto channel). Returns int32 labels."""
+    """Run cellpose-SAM on the nuclei channel (grayscale; a membrane channel
+    may be stacked in — cpsam takes arbitrary channel orders). Returns int32
+    labels. `diameter` rescales the image so objects match cpsam's ~30 px
+    training size; `niter` raises the flow-integration steps for big objects."""
     model = get_model()
     if membrane is None:
         img = nuclei.astype(np.float32)
-        chans = [0, 0]  # grayscale
+        channel_axis = None
     else:
-        img = np.stack([membrane.astype(np.float32), nuclei.astype(np.float32)])
-        chans = [1, 2]  # cyto = channel 1 (membrane), nucleus = channel 2 (nuclei)
+        img = np.stack([nuclei.astype(np.float32), membrane.astype(np.float32)])
+        channel_axis = 0
     masks, _, _ = model.eval(
         img,
-        channels=chans,
-        channel_axis=0 if membrane is not None else None,
+        channel_axis=channel_axis,
         diameter=diameter,
         cellprob_threshold=sensitivity_to_cellprob(sensitivity),
-        flow_threshold=0.4,
+        flow_threshold=config.SEG_FLOW_THRESHOLD,
+        niter=niter,
+        normalize=True,
     )
-    return masks.astype(np.int32)
+    return np.asarray(masks).astype(np.int32)
 
 
 def sensitivity_to_otsu_scale(sensitivity: float) -> float:
@@ -97,3 +109,41 @@ def segment_otsu(
     markers, _ = ndi.label(peaks)
     labels = segmentation.watershed(-dist, markers, mask=mask)
     return segmentation.relabel_sequential(labels)[0].astype(np.int32)
+
+
+class JobCancelled(Exception):
+    """Raised inside a tile function when the job's cancel event is set."""
+
+
+def workers_for(segmenter: str) -> int:
+    return config.CELLPOSE_WORKERS if segmenter == "cellpose" else config.OTSU_WORKERS
+
+
+def make_tile_segmenter(
+    segmenter: str,
+    diameter_px: float,
+    sensitivity: float,
+    window: tuple[float, float],
+    method: str = "gaussian",
+    strength: float = 1.5,
+    on_tile: Callable[[], None] | None = None,
+    cancel: threading.Event | None = None,
+    niter: int | None = None,
+) -> Callable[[np.ndarray], np.ndarray]:
+    """(raw uint16 (y, x) tile) -> uint32 label tile, for ngio SegmentationIterator."""
+    lo, hi = window
+
+    def run(patch: np.ndarray) -> np.ndarray:
+        if cancel is not None and cancel.is_set():
+            raise JobCancelled()
+        patch = np.asarray(patch).reshape(patch.shape[-2:])
+        enhanced = enhance_patch(patch, lo, hi, method, strength)
+        if segmenter == "cellpose":
+            labels = segment(enhanced, None, diameter_px, sensitivity, niter=niter)
+        else:
+            labels = segment_otsu(enhanced, None, diameter_px, sensitivity)
+        if on_tile is not None:
+            on_tile()
+        return labels.astype(np.uint32)
+
+    return run

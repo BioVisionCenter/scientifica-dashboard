@@ -92,10 +92,10 @@ export const copy = {
       fr: 'Microscopie à fluorescence : noyaux en cyan, membranes cellulaires en magenta.',
     },
     credit: {
-      de: 'Daten: Liberali-Labor · «Fractal» (Lüthi et al.) · BioVisionCenter, Universität Zürich',
-      en: 'Data: Liberali lab · "Fractal" (Lüthi et al.) · BioVisionCenter, University of Zurich',
-      it: 'Dati: laboratorio Liberali · «Fractal» (Lüthi et al.) · BioVisionCenter, Università di Zurigo',
-      fr: 'Données : laboratoire Liberali · « Fractal » (Lüthi et al.) · BioVisionCenter, Université de Zurich',
+      de: 'Daten: BioVisionCenter, Universität Zürich — aus «Fractal» (Lüthi et al., bioRxiv 2026)',
+      en: 'Data: BioVisionCenter, University of Zurich — from "Fractal" (Lüthi et al., bioRxiv 2026)',
+      it: 'Dati: BioVisionCenter, Università di Zurigo — da «Fractal» (Lüthi et al., bioRxiv 2026)',
+      fr: 'Données : BioVisionCenter, Université de Zurich — tirées de « Fractal » (Lüthi et al., bioRxiv 2026)',
     },
   },
 
@@ -120,10 +120,10 @@ export const copy = {
       fr: 'Nous permettons aux biologistes d’analyser leurs données de microscopie avec des méthodes de vision par ordinateur de pointe.',
     },
     credit: {
-      de: 'Zuhause der Open-Source-Plattform Fractal — in Partnerschaft mit dem FMI',
-      en: 'Home of the open-source Fractal platform — in partnership with FMI',
-      it: 'Casa della piattaforma open source Fractal — in partenariato con l’FMI',
-      fr: 'Berceau de la plateforme open source Fractal — en partenariat avec le FMI',
+      de: 'Zuhause der Open-Source-Plattform Fractal',
+      en: 'Home of the open-source Fractal platform',
+      it: 'Casa della piattaforma open source Fractal',
+      fr: 'Berceau de la plateforme open source Fractal',
     },
   },
 

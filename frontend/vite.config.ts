@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: {
+    // one deck.gl/luma.gl instance: Viv's layers must extend the same Layer class
+    dedupe: ['@deck.gl/core', '@luma.gl/core', '@luma.gl/engine', 'react', 'react-dom'],
+  },
   build: {
     // "/assets" is taken by the backend's derived-data mount
     assetsDir: 'app',

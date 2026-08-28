@@ -7,6 +7,7 @@ sigma = 0.2 # accuracy scale: relative-error e-folding (0.2 = being 20% off cost
 tau = 6.0   # speed budget in seconds per cell
 
 [truth_overrides]
-# Per-image true counts that override the segmentation cell_count from the
-# manifest, e.g.:
-# roi_03 = 210
+# Emergency per-ROI overrides. The normal place to edit the game's ground
+# truth is data/derived/game.json (id + shown name + true_count); a value
+# here wins over it, e.g.:
+# roi_3 = 210

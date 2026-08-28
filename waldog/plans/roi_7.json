@@ -1,0 +1,48 @@
+{
+ "roi": 7,
+ "pets": [
+  {
+   "pet": "chicken",
+   "cx": 5086,
+   "cy": 3336,
+   "mode": "top",
+   "alpha": 0.9,
+   "color_blend": 0.1,
+   "note": "easy: white hen on a dark pocket framed by cells"
+  },
+  {
+   "pet": "cockatiel",
+   "cx": 2981,
+   "cy": 2942,
+   "mode": "inside",
+   "alpha": 0.75,
+   "color_blend": 0.35,
+   "size_mult": 0.9,
+   "note": "devious: bird embedded inside a 363px cell, center-left"
+  },
+  {
+   "pet": "spaniel",
+   "cx": 7100,
+   "cy": 1265,
+   "mode": "behind",
+   "cover": 0.35,
+   "note": "hard: ears blend into greenish rims, edges under cells"
+  },
+  {
+   "pet": "blackdog",
+   "cx": 4876,
+   "cy": 3722,
+   "mode": "behind",
+   "cover": 0.5,
+   "note": "hard: dark head against dark matrix, half tucked under cells"
+  },
+  {
+   "pet": "cat",
+   "cx": 3454,
+   "cy": 3723,
+   "mode": "behind",
+   "cover": 0.5,
+   "note": "hard: tabby in the brown matrix crevice, half behind cells"
+  }
+ ]
+}

@@ -1,4 +1,4 @@
-import type { Cell, Entry, FeaturesFile, GameRound, Manifest, RevealPayload, Scene, ThemeMode } from './types'
+import type { CellsFile, Entry, GameRound, Job, Manifest, RevealPayload, Scene, SegmentRequest, ThemeMode } from './types'
 import type { TvLang } from '../copy'
 
 async function json<T>(res: Response): Promise<T> {
@@ -8,7 +8,7 @@ async function json<T>(res: Response): Promise<T> {
 
 export const api = {
   manifest: () => fetch('/api/manifest').then((r) => json<Manifest>(r)),
-  features: (url: string) => fetch(url).then((r) => json<FeaturesFile>(r)),
+  cells: (url: string) => fetch(url, { cache: 'no-cache' }).then((r) => json<CellsFile>(r)),
 
   gameRound: () => fetch('/api/game/round').then((r) => json<GameRound>(r)),
   setRound: (image_id: string) =>
@@ -65,13 +65,13 @@ export const api = {
       body: JSON.stringify({ state }),
     }),
 
-  liveCells: (url: string) => fetch(url).then((r) => json<Cell[]>(r)),
   exploreState: () => fetch('/api/tv/explore-state').then((r) => json<Record<string, unknown>>(r)),
-  computeSegment: (body: Record<string, unknown>) =>
+  computeSegment: (body: SegmentRequest) =>
     fetch('/api/compute/segment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => json<{ job_id: string }>(r)),
-  jobStatus: (id: string) => fetch(`/api/compute/jobs/${id}`).then((r) => json<Record<string, unknown>>(r)),
+  jobStatus: (id: string) => fetch(`/api/compute/jobs/${id}`).then((r) => json<Job>(r)),
+  cancelJob: (id: string) => fetch(`/api/compute/jobs/${id}/cancel`, { method: 'POST' }).then((r) => json(r)),
 }
