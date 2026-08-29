@@ -112,13 +112,29 @@ export interface Manifest {
   images: ManifestImage[]
 }
 
-export interface GameRound {
-  round_id: string | null
+export type LaneStatus = 'empty' | 'armed' | 'running' | 'stopped' | 'done'
+
+/** One of the six independent game lanes: a player counting one field. */
+export interface Lane {
+  slot: number
+  name: string
   image_id: string | null
   image_url: string | null
-  status: 'idle' | 'armed' | 'running' | 'stopped'
+  image_title: string | null
+  status: LaneStatus
+  /** bumped on every start so clocks re-seed */
+  run_id: number
+  /** authoritative seconds once stopped / done */
   elapsed: number | null
+  /** server-side elapsed at send time (running), else == elapsed */
   elapsed_now: number | null
+  entry_id: number | null
+  score: number | null
+  rank: number | null
+}
+
+export interface LanesState {
+  lanes: Lane[]
 }
 
 export interface Entry {

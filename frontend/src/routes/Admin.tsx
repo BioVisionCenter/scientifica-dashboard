@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../stores/appStore'
 import { useWebsocket } from '../api/ws'
 import { api } from '../api/client'
-import type { ManifestImage, Scene } from '../api/types'
+import type { Lane, ManifestImage, Scene } from '../api/types'
 import type { TvLang } from '../copy'
 import { LeaderboardBoard } from '../components/leaderboard/LeaderboardBoard'
 import { EventMark } from '../components/common/EventMark'
@@ -122,37 +122,15 @@ export default function Admin() {
 
 function GameTab() {
   const entries = useAppStore((s) => s.entries)
-  const round = useAppStore((s) => s.round)
-  const clock = useRoundClock(round)
+  const lanes = useAppStore((s) => s.lanes)
 
   const [images, setImages] = useState<ManifestImage[]>([])
-  const [imageId, setImageId] = useState('')
-  const [customCount, setCustomCount] = useState('')
-  const [name, setName] = useState('')
-  const [guess, setGuess] = useState('')
-  const [minStr, setMinStr] = useState('')
-  const [secStr, setSecStr] = useState('')
   const [lastResult, setLastResult] = useState<string | null>(null)
   const [lastEntryId, setLastEntryId] = useState<number | null>(null)
-  const [dupWarning, setDupWarning] = useState(false)
-
-  const running = round?.status === 'running'
 
   useEffect(() => {
-    api.manifest().then((m) => {
-      setImages(m.images)
-      if (m.images.length) setImageId(m.images[0].id)
-    })
+    api.manifest().then((m) => setImages(m.images))
   }, [])
-
-  // when the round stops, its authoritative time prefills the (editable) fields
-  useEffect(() => {
-    if (round?.status === 'stopped' && round.elapsed != null) {
-      const m = Math.floor(round.elapsed / 60)
-      setMinStr(m > 0 ? String(m) : '')
-      setSecStr((Math.round((round.elapsed - m * 60) * 10) / 10).toString())
-    }
-  }, [round?.status, round?.round_id, round?.elapsed])
 
   // re-render every 30s so relative times stay fresh
   const [, setTick] = useState(0)
@@ -165,7 +143,7 @@ function GameTab() {
     if (lastEntryId === null) return
     await api.deleteEntry(lastEntryId).catch(() => {})
     setLastEntryId(null)
-    setLastResult('last entry removed')
+    setLastResult('last entry removed — its lane is back to "stopped"')
   }
 
   // Cmd/Ctrl+Z outside inputs = undo last submitted entry
@@ -181,196 +159,69 @@ function GameTab() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
-  const isCustom = imageId === 'custom'
-
-  const showOnTv = () => api.setRound(imageId).catch(() => {})
-  const startRound = () => api.startRound().catch(() => {})
-  const stopRound = () => api.stopRound().catch(() => {})
-  const clearRound = () => api.clearRound().catch(() => {})
-
-  const totalSeconds = (parseInt(minStr, 10) || 0) * 60 + (parseFloat(secStr) || 0)
-
-  const submit = async () => {
-    if (!name.trim() || !guess || totalSeconds <= 0) return
-    if (isCustom && !(parseInt(customCount, 10) > 0)) return
-    const isDuplicate = entries.some((e) => e.name.toLowerCase() === name.trim().toLowerCase())
-    if (isDuplicate && !dupWarning) {
-      setDupWarning(true)
-      return
-    }
-    setDupWarning(false)
-    const res = await api.addEntry({
-      name: name.trim(),
-      game_image_id: imageId,
-      guess: parseInt(guess, 10),
-      time_seconds: Math.round(totalSeconds * 10) / 10,
-      ...(isCustom ? { true_count: parseInt(customCount, 10) } : {}),
-    })
-    setLastEntryId(res.entry.id)
-    setLastResult(
-      `${res.entry.name}: rank ${res.rank}/${res.total} — score ${res.entry.score} (true count ${res.true_count})`,
-    )
-    setName('')
-    setGuess('')
-    setMinStr('')
-    setSecStr('')
-  }
-
   const removeEntry = async (id: number, entryName: string) => {
     if (!window.confirm(`Delete ${entryName}'s entry?`)) return
     await api.deleteEntry(id)
     if (id === lastEntryId) setLastEntryId(null)
   }
 
-  const selectedImage = images.find((i) => i.id === imageId)
-  const roundLive = round != null && round.status !== 'idle'
-  const roundMatchesSelection = round?.image_id === imageId
+  const anyArmed = lanes.some((l) => l.status === 'armed')
+  const anyFilled = lanes.some((l) => l.status !== 'empty')
+  const anyRunning = lanes.some((l) => l.status === 'running')
+
+  const clearAll = () => {
+    if (anyRunning && !window.confirm('Some lanes are still running. Clear all lanes anyway?')) return
+    api.clearLanes().catch(() => {})
+  }
 
   return (
-    <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.2fr_1fr] gap-6 px-6 py-5">
+    <div className="mx-auto grid h-full max-w-7xl grid-cols-[1.35fr_1fr] gap-6 px-6 py-5">
       <div className="flex min-h-0 flex-col gap-5">
-        <div className="card flex flex-col gap-4 p-5">
-          <div className="flex items-center justify-between">
-            <span className="eyebrow">round</span>
-            {roundLive && (
-              <span
-                className="rounded px-2 py-0.5 font-mono text-[11px]"
-                style={{
-                  background: running ? 'var(--ccc-magenta-soft)' : 'var(--ngio-sunk)',
-                  color: running ? 'var(--ccc-magenta-ink)' : 'var(--ngio-faint)',
-                }}
-              >
-                {round.image_id} · {round.status}
-              </span>
-            )}
-          </div>
-          <div className="flex gap-3">
-            <select className="input flex-1" value={imageId} onChange={(e) => setImageId(e.target.value)}>
-              {images.map((img) => (
-                <option key={img.id} value={img.id}>
-                  {img.title} ({img.id}){img.hero ? ' — HERO' : ''}
-                </option>
-              ))}
-              <option value="custom">Custom… (type the true count yourself)</option>
-            </select>
-            {isCustom && (
-              <input
-                className="input w-40 font-mono"
-                type="number"
-                min={1}
-                placeholder="true count"
-                value={customCount}
-                onChange={(e) => setCustomCount(e.target.value)}
-              />
-            )}
-          </div>
+        <div className="card flex min-h-0 flex-col gap-3 p-5">
           <div className="flex items-center gap-3">
-            <button className="btn" style={{ padding: '13px 18px' }} onClick={showOnTv} disabled={running}>
-              📺 Show on TV
-            </button>
-            {!running ? (
+            <span className="eyebrow">lanes</span>
+            <div className="ml-auto flex items-center gap-2">
+              <button className="btn" style={{ padding: '9px 14px' }} onClick={() => api.setScene('game')}>
+                📺 Show on TV
+              </button>
               <button
                 className="btn btn-primary"
-                style={{ padding: '13px 18px' }}
-                onClick={startRound}
-                disabled={!roundLive || !roundMatchesSelection}
-                title={roundLive ? undefined : 'Show the round on the TV first'}
+                style={{ padding: '9px 14px' }}
+                onClick={() => api.startAll().catch(() => {})}
+                disabled={!anyArmed}
+                title={anyArmed ? 'Start every armed lane on the same clock' : 'No armed lane'}
               >
-                ▶ Start
+                ▶ Start all
               </button>
-            ) : (
-              <button className="btn btn-primary" style={{ padding: '13px 18px' }} onClick={stopRound}>
-                ■ Stop
+              <button className="btn" style={{ padding: '9px 14px' }} onClick={clearAll} disabled={!anyFilled}>
+                Clear all
               </button>
-            )}
-            <button className="btn" style={{ padding: '13px 18px' }} onClick={clearRound} disabled={!roundLive}>
-              Clear
-            </button>
-            <span
-              className="ml-auto font-mono"
-              style={{
-                fontSize: 34,
-                fontVariantNumeric: 'tabular-nums',
-                color: running ? 'var(--ngio-accent)' : roundLive ? undefined : 'var(--ngio-faint)',
-              }}
-            >
-              {formatClock(clock)}
-            </span>
-          </div>
-        </div>
-
-        <div className="card flex flex-col gap-4 p-5">
-          <span className="eyebrow">new attempt</span>
-          <div className="flex items-center gap-3">
-            <input
-              className="input flex-1"
-              placeholder="Participant name"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value)
-                setDupWarning(false)
-              }}
-            />
-            <label className="flex w-24 flex-col gap-1">
-              <span className="eyebrow">min</span>
-              <input
-                className="input font-mono"
-                style={{ fontSize: 22 }}
-                type="number"
-                min={0}
-                step={1}
-                value={minStr}
-                placeholder="0"
-                onChange={(e) => setMinStr(e.target.value)}
-                disabled={running}
-              />
-            </label>
-            <label className="flex w-32 flex-col gap-1">
-              <span className="eyebrow">sec</span>
-              <input
-                className="input font-mono"
-                style={{ fontSize: 22 }}
-                type="number"
-                min={0}
-                step={0.1}
-                value={secStr}
-                placeholder="0.0"
-                onChange={(e) => setSecStr(e.target.value)}
-                disabled={running}
-              />
-            </label>
-            <label className="flex w-36 flex-col gap-1">
-              <span className="eyebrow">their count</span>
-              <input
-                className="input font-mono"
-                style={{ fontSize: 22 }}
-                type="number"
-                min={0}
-                value={guess}
-                onChange={(e) => setGuess(e.target.value)}
-              />
-            </label>
-            <button
-              className="btn btn-primary self-end"
-              style={{ padding: '13px 22px' }}
-              disabled={running || !name.trim() || !guess || totalSeconds <= 0 || (isCustom && !(parseInt(customCount, 10) > 0))}
-              onClick={submit}
-            >
-              Submit
-            </button>
-          </div>
-          {dupWarning && (
-            <div className="text-sm" style={{ color: 'var(--ngio-amber)' }}>
-              "{name.trim()}" is already on the board — click Submit again to add anyway.
             </div>
-          )}
+          </div>
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto">
+            {lanes.map((lane) => (
+              <LaneRow
+                key={lane.slot}
+                lane={lane}
+                images={images}
+                entries={entries}
+                onSubmitted={(msg, entryId) => {
+                  setLastResult(msg)
+                  setLastEntryId(entryId)
+                }}
+              />
+            ))}
+          </div>
           <div className="flex items-center justify-between">
             {lastResult ? (
               <span className="font-mono text-sm" style={{ color: 'var(--ngio-accent-ink)' }}>
                 {lastResult}
               </span>
             ) : (
-              <span />
+              <span className="text-sm" style={{ color: 'var(--ngio-faint)' }}>
+                Give each player a name and a field, then ▶ them together or one by one. Stop each player
+                when they call it, type their count, Submit.
+              </span>
             )}
             {lastEntryId !== null && (
               <button className="btn" style={{ padding: '5px 12px', fontSize: 12.5 }} onClick={undoLast}>
@@ -379,19 +230,6 @@ function GameTab() {
             )}
           </div>
         </div>
-
-        {selectedImage && (
-          <div className="card flex items-center gap-4 p-4">
-            <img src={selectedImage.assets.display} alt="" className="h-36 w-36 rounded-lg object-cover" />
-            <div className="flex flex-col gap-1.5">
-              <span className="eyebrow">round image</span>
-              <p className="text-sm" style={{ color: 'var(--ngio-muted)', maxWidth: '38ch' }}>
-                Show on TV puts this image and the stopwatch on the big screen. The true
-                count stays hidden until the reveal.
-              </p>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="flex min-h-0 flex-col gap-4">
@@ -435,6 +273,237 @@ function GameTab() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+const STATUS_STYLE: Record<Lane['status'], { bg: string; fg: string; label: string }> = {
+  empty: { bg: 'var(--ngio-sunk)', fg: 'var(--ngio-faint)', label: 'empty' },
+  armed: { bg: 'var(--ngio-sunk)', fg: 'var(--ngio-muted)', label: 'armed' },
+  running: { bg: 'var(--ccc-magenta-soft)', fg: 'var(--ccc-magenta-ink)', label: 'running' },
+  stopped: { bg: 'var(--ngio-sunk)', fg: 'var(--ngio-accent-ink)', label: 'stopped' },
+  done: { bg: 'var(--ngio-sunk)', fg: 'var(--ngio-faint)', label: 'done' },
+}
+
+/** One lane: setup inputs while empty/armed, stop while running, count entry
+    once stopped, result + "next player" once done. */
+function LaneRow({
+  lane,
+  images,
+  entries,
+  onSubmitted,
+}: {
+  lane: Lane
+  images: ManifestImage[]
+  entries: { name: string }[]
+  onSubmitted: (msg: string, entryId: number) => void
+}) {
+  const clock = useRoundClock(lane)
+  const { status, slot } = lane
+  const editable = status === 'empty' || status === 'armed'
+
+  // setup drafts; pushed on blur/change, adopted back from the server echo
+  const [name, setName] = useState(lane.name)
+  const [imageId, setImageId] = useState(lane.image_id ?? '')
+  const [customCount, setCustomCount] = useState('')
+  useEffect(() => {
+    setName(lane.name)
+    setImageId(lane.image_id ?? '')
+    if (lane.status === 'empty' && !lane.image_id) setCustomCount('')
+  }, [lane.name, lane.image_id, lane.status])
+
+  const push = (next: { name?: string; image_id?: string; custom?: string } = {}) => {
+    const n = next.name ?? name
+    const img = next.image_id ?? imageId
+    const c = parseInt(next.custom ?? customCount, 10)
+    return api
+      .setLane(slot, { name: n, image_id: img || null, ...(img === 'custom' && c > 0 ? { true_count: c } : {}) })
+      .catch(() => {})
+  }
+
+  // count entry once stopped
+  const [guess, setGuess] = useState('')
+  const [minStr, setMinStr] = useState('')
+  const [secStr, setSecStr] = useState('')
+  const [dupWarning, setDupWarning] = useState(false)
+  useEffect(() => {
+    if (status === 'stopped' && lane.elapsed != null) {
+      const m = Math.floor(lane.elapsed / 60)
+      setMinStr(m > 0 ? String(m) : '')
+      setSecStr((Math.round((lane.elapsed - m * 60) * 10) / 10).toString())
+    }
+    if (status !== 'stopped') {
+      setGuess('')
+      setDupWarning(false)
+    }
+  }, [status, lane.elapsed, lane.run_id])
+
+  const totalSeconds = (parseInt(minStr, 10) || 0) * 60 + (parseFloat(secStr) || 0)
+
+  const start = async () => {
+    if (editable) await push()
+    await api.startLane(slot).catch(() => {})
+  }
+
+  const submit = async () => {
+    if (!guess || totalSeconds <= 0) return
+    const isDuplicate = entries.some((e) => e.name.toLowerCase() === lane.name.toLowerCase())
+    if (isDuplicate && !dupWarning) {
+      setDupWarning(true)
+      return
+    }
+    setDupWarning(false)
+    const res = await api.submitLane(slot, { guess: parseInt(guess, 10), time_seconds: Math.round(totalSeconds * 10) / 10 })
+    onSubmitted(
+      `${res.entry.name}: rank ${res.rank}/${res.total} — score ${res.entry.score} (true count ${res.true_count})`,
+      res.entry.id,
+    )
+  }
+
+  const st = STATUS_STYLE[status]
+
+  return (
+    <div
+      className="flex flex-col gap-2 rounded-lg px-3 py-2"
+      style={{ background: status === 'empty' ? 'transparent' : 'var(--ngio-sunk)', border: 'var(--ngio-border)' }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="w-5 font-mono text-sm" style={{ color: 'var(--ngio-faint)' }}>
+          {slot + 1}
+        </span>
+
+        {editable ? (
+          <>
+            <input
+              className="input flex-1"
+              placeholder="Player name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={() => {
+                if (name !== lane.name) void push()
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              }}
+            />
+            <select
+              className="input w-52"
+              value={imageId}
+              onChange={(e) => {
+                setImageId(e.target.value)
+                void push({ image_id: e.target.value })
+              }}
+            >
+              <option value="">field…</option>
+              {images.map((img) => (
+                <option key={img.id} value={img.id}>
+                  {img.title}
+                  {img.hero ? ' — HERO' : ''}
+                </option>
+              ))}
+              <option value="custom">Custom… (type the true count)</option>
+            </select>
+            {imageId === 'custom' && (
+              <input
+                className="input w-28 font-mono"
+                type="number"
+                min={1}
+                placeholder="true count"
+                value={customCount}
+                onChange={(e) => setCustomCount(e.target.value)}
+                onBlur={() => void push()}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            <span className="flex-1 truncate font-medium">{lane.name}</span>
+            <span
+              className="rounded px-1.5 py-0.5 font-mono text-[10.5px]"
+              style={{ background: 'var(--ngio-surface)', color: 'var(--ngio-faint)' }}
+            >
+              {lane.image_title}
+            </span>
+          </>
+        )}
+
+        <span className="rounded px-2 py-0.5 font-mono text-[11px]" style={{ background: st.bg, color: st.fg }}>
+          {st.label}
+        </span>
+
+        {status === 'done' ? (
+          <span className="font-mono" style={{ fontSize: 18, color: 'var(--ngio-accent-ink)', fontVariantNumeric: 'tabular-nums' }}>
+            ✓ {lane.score} <span style={{ color: 'var(--ngio-faint)', fontSize: 13 }}>#{lane.rank} · {formatClock(clock)}</span>
+          </span>
+        ) : (
+          <span
+            className="w-24 text-right font-mono"
+            style={{
+              fontSize: 22,
+              fontVariantNumeric: 'tabular-nums',
+              color: status === 'running' ? 'var(--ngio-accent)' : status === 'stopped' ? undefined : 'var(--ngio-faint)',
+            }}
+          >
+            {formatClock(clock)}
+          </span>
+        )}
+
+        {status === 'running' ? (
+          <button className="btn btn-primary w-24" style={{ padding: '9px 0' }} onClick={() => api.stopLane(slot).catch(() => {})}>
+            ■ Stop
+          </button>
+        ) : status === 'done' ? (
+          <button className="btn w-24" style={{ padding: '9px 0' }} onClick={() => api.clearLane(slot).catch(() => {})}>
+            Next player
+          </button>
+        ) : (
+          <button
+            className={`btn w-24 ${status === 'armed' ? 'btn-primary' : ''}`}
+            style={{ padding: '9px 0' }}
+            onClick={start}
+            disabled={status === 'empty' && !(name.trim() && imageId && (imageId !== 'custom' || parseInt(customCount, 10) > 0))}
+            title={status === 'stopped' ? 'Restart this lane from zero' : 'Start this lane'}
+          >
+            {status === 'stopped' ? '↺ Restart' : '▶ Start'}
+          </button>
+        )}
+      </div>
+
+      {status === 'stopped' && (
+        <div className="flex items-end gap-3 pl-7">
+          <label className="flex w-20 flex-col gap-1">
+            <span className="eyebrow">min</span>
+            <input className="input font-mono" type="number" min={0} step={1} value={minStr} placeholder="0" onChange={(e) => setMinStr(e.target.value)} />
+          </label>
+          <label className="flex w-24 flex-col gap-1">
+            <span className="eyebrow">sec</span>
+            <input className="input font-mono" type="number" min={0} step={0.1} value={secStr} placeholder="0.0" onChange={(e) => setSecStr(e.target.value)} />
+          </label>
+          <label className="flex w-32 flex-col gap-1">
+            <span className="eyebrow">their count</span>
+            <input
+              className="input font-mono"
+              style={{ fontSize: 20 }}
+              type="number"
+              min={0}
+              value={guess}
+              autoFocus
+              onChange={(e) => setGuess(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submit()
+              }}
+            />
+          </label>
+          <button className="btn btn-primary" style={{ padding: '11px 20px' }} disabled={!guess || totalSeconds <= 0} onClick={submit}>
+            Submit
+          </button>
+          {dupWarning && (
+            <span className="pb-2 text-sm" style={{ color: 'var(--ngio-amber)' }}>
+              "{lane.name}" is already on the board — Submit again to add anyway.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

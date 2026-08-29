@@ -174,6 +174,12 @@ export const copy = {
       it: 'Tempo fermato',
       fr: 'Chrono arrêté',
     },
+    done: {
+      de: 'Fertig',
+      en: 'Done',
+      it: 'Fatto',
+      fr: 'Terminé',
+    },
   },
 
   leaderboard: {

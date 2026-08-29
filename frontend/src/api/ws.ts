@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useAppStore } from '../stores/appStore'
 import { api } from './client'
-import type { Entry, GameRound, RevealPayload, Scene } from './types'
+import type { Entry, LanesState, RevealPayload, Scene } from './types'
 
 /** Reconnecting websocket that dispatches messages into the app store. */
 export function useWebsocket(role: 'tv' | 'admin') {
@@ -14,18 +14,18 @@ export function useWebsocket(role: 'tv' | 'admin') {
 
     const resync = async () => {
       try {
-        const [scene, entries, exploreState, round] = await Promise.all([
+        const [scene, entries, exploreState, lanes] = await Promise.all([
           api.getScene(),
           api.entries(20),
           api.exploreState(),
-          api.gameRound(),
+          api.gameLanes(),
         ])
         store().setScene(scene.scene, scene.payload)
         if (scene.lang) store().setLang(scene.lang)
         if (scene.theme) store().setTheme(scene.theme)
         store().setEntries(entries)
         if (exploreState && Object.keys(exploreState).length) store().setExploreSync(exploreState)
-        store().setRound(round)
+        store().setLanes(lanes.lanes)
       } catch {
         /* backend not up yet; the next reconnect retries */
       }
@@ -73,8 +73,8 @@ export function useWebsocket(role: 'tv' | 'admin') {
           case 'explore:sync':
             s.setExploreSync(payload)
             break
-          case 'round:update':
-            s.setRound(payload as GameRound)
+          case 'lanes:update':
+            s.setLanes((payload as LanesState).lanes)
             break
           case 'job:progress':
             s.setJobStage({ jobId: payload.job_id, stage: payload.stage, done: payload.done ?? 0, total: payload.total ?? 0 })

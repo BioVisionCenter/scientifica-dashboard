@@ -48,15 +48,21 @@ uv run scientifica-server    # serves everything on http://<laptop-ip>:8100
 
 - **TV**: open `http://<laptop-ip>:8100/tv` in a fullscreen browser (kiosk mode).
 - **Laptop**: `http://localhost:8100/admin` — everything lives here: the Game tab
-  (round control with the shared stopwatch, entries, leaderboard preview) and the
+  (six player lanes with their own stopwatches, entries, leaderboard preview) and the
   Explore tab (analysis panel; "Broadcast to TV" mirrors it). TV scene, language
   (DE/EN/IT/FR, DE+EN, or auto-rotate) and theme (light/dark) sit in the
   always-visible controls row.
 
-Playing a round: pick an image (or "Custom" with a typed true count), **Show on
-TV**, then **Start** — the TV shows the full image and a stopwatch. **Stop**
-freezes both clocks and prefills the entry's time; submit name + guess to score
-and reveal on the leaderboard.
+Playing: up to six people play at once, one per **lane**. Give each lane a player
+name and a field (or "Custom" with a typed true count); the TV shows one tile per
+filled lane — field image, name and its own stopwatch — in a grid that adapts to
+the number of players. **▶ Start all** starts every armed lane on the same clock,
+or start lanes one by one. **Stop** each player when they call it: their clock
+freezes, prefilling the time; type their count and **Submit** to score and reveal
+on the leaderboard (the TV returns to the grid by itself while others are still
+counting). A finished lane keeps showing ✓ score on the TV until **Next player**
+frees it for the next person — lanes are independent, so new players can start
+while others are mid-count.
 
 The TV needs no interaction: scenes (idle / explore / game / leaderboard /
 podium) are switched from the admin page, and it reconnects by itself if the
