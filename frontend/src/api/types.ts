@@ -131,6 +131,8 @@ export interface Lane {
   entry_id: number | null
   score: number | null
   rank: number | null
+  /** name already on the board or on another active lane */
+  name_taken: boolean
 }
 
 export interface LanesState {

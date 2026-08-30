@@ -56,6 +56,12 @@ def delete_entry(entry_id: int) -> bool:
     return cur.rowcount > 0
 
 
+def all_names_lower() -> set[str]:
+    """Every name on the board, lower-cased (duplicate-name checks)."""
+    with connect() as conn:
+        return {r[0] for r in conn.execute("SELECT DISTINCT LOWER(name) FROM entries")}
+
+
 def ranked_entries(limit: int | None = None) -> list[dict]:
     """Entries ordered by score desc (ties: earlier submission wins), rank attached."""
     q = "SELECT * FROM entries ORDER BY score DESC, created_at ASC, id ASC"

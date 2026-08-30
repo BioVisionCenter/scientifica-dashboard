@@ -46,17 +46,34 @@ _lanes: list[dict] = [_empty_lane(i) for i in range(N_LANES)]
 _PRIVATE = ("started_at", "true_count")
 
 
-def _public_lane(lane: dict) -> dict:
+def _name_taken(lane: dict, board: set[str] | None = None) -> bool:
+    """True if the lane's name is already on the board or on another active lane."""
+    name = lane["name"].strip().lower()
+    if not name:
+        return False
+    if board is None:
+        board = db.all_names_lower()
+    if name in board:
+        return True
+    return any(
+        other is not lane and other["status"] != "empty" and other["name"].strip().lower() == name
+        for other in _lanes
+    )
+
+
+def _public_lane(lane: dict, board: set[str] | None = None) -> dict:
     out = {k: v for k, v in lane.items() if k not in _PRIVATE}
     if lane["status"] == "running":
         out["elapsed_now"] = round(time.time() - lane["started_at"], 1)
     else:
         out["elapsed_now"] = lane["elapsed"]
+    out["name_taken"] = _name_taken(lane, board)
     return out
 
 
 def _public_lanes() -> dict:
-    return {"lanes": [_public_lane(lane) for lane in _lanes]}
+    board = db.all_names_lower()
+    return {"lanes": [_public_lane(lane, board) for lane in _lanes]}
 
 
 def _lane(slot: int) -> dict:
@@ -123,6 +140,7 @@ async def _submit_entry(name: str, image_id: str, guess: int, time_seconds: floa
         },
     )
     await hub.broadcast("leaderboard:update", {"entries": [_public_entry(r) for r in db.ranked_entries(20)]})
+    await _broadcast_lanes()  # name_taken flags depend on the board
     return {"entry": _public_entry(entry), "rank": rank, "total": total, "true_count": true_count}
 
 
@@ -213,9 +231,11 @@ def _start(lane: dict, now: float) -> None:
 @router.post("/lanes/start-all")
 async def start_all():
     now = time.time()
-    armed = [lane for lane in _lanes if lane["status"] == "armed"]
+    board = db.all_names_lower()
+    # lanes whose name is already on the board are skipped until renamed
+    armed = [lane for lane in _lanes if lane["status"] == "armed" and not _name_taken(lane, board)]
     if not armed:
-        raise HTTPException(409, "no armed lane to start")
+        raise HTTPException(409, "no armed lane with a free name to start")
     for lane in armed:
         _start(lane, now)
     await _ensure_game_scene()
@@ -237,6 +257,8 @@ async def start_lane(slot: int):
     lane = _lane(slot)
     if lane["status"] not in ("armed", "stopped"):
         raise HTTPException(409, "lane is not armed")
+    if _name_taken(lane):
+        raise HTTPException(409, "name already on the board")
     _start(lane, time.time())
     await _ensure_game_scene()
     await _broadcast_lanes()
@@ -249,6 +271,21 @@ async def stop_lane(slot: int):
     if lane["status"] != "running":
         raise HTTPException(409, "lane is not running")
     lane.update(status="stopped", elapsed=round(time.time() - lane["started_at"], 1), started_at=None)
+    await _broadcast_lanes()
+    return _public_lane(lane)
+
+
+class NameBody(BaseModel):
+    name: str = Field(min_length=1, max_length=40)
+
+
+@router.post("/lanes/{slot}/name")
+async def rename_lane(slot: int, body: NameBody):
+    """Rename an armed or stopped lane (e.g. to fix a duplicate right before submit)."""
+    lane = _lane(slot)
+    if lane["status"] not in ("armed", "stopped"):
+        raise HTTPException(409, "lane cannot be renamed now")
+    lane["name"] = body.name.strip()
     await _broadcast_lanes()
     return _public_lane(lane)
 
@@ -319,6 +356,6 @@ async def remove_entry(entry_id: int):
     for lane in _lanes:
         if lane["status"] == "done" and lane["entry_id"] == entry_id:
             lane.update(status="stopped", entry_id=None, score=None, rank=None)
-            await _broadcast_lanes()
     await hub.broadcast("leaderboard:update", {"entries": [_public_entry(r) for r in db.ranked_entries(20)]})
+    await _broadcast_lanes()
     return {"ok": True}
