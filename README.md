@@ -1,10 +1,10 @@
 # Scientifica bioimage dashboard
 
-Event dashboard for the bioimage-analysis booth: an interactive analysis showcase
-and a cell-counting game, shown fullscreen on a TV and driven from a laptop on
-the same network. The admin picks a round image, the TV shows it with a
-stopwatch, and the app records attempts, scores them, and animates the
-leaderboard.
+Event dashboard for the bioimage-analysis booth at Scientifica 2026: an 
+interactive analysis showcase and a cell-counting game, shown fullscreen on a 
+TV and driven from a laptop on the same network. The admin picks a round image, 
+the TV shows it with a stopwatch, and the app records attempts, scores them, 
+and animates the leaderboard.
 
 ## Install
 
@@ -12,7 +12,7 @@ leaderboard.
 
 Everything is driven by one whole-well OME-Zarr:
 
-> 📦 **Download `Cardiomyocyte_mip_scientifica_2026.zarr` (zip, ~1.6 GB):** https://drive.google.com/file/d/19HRCYyWOSwyJfKxxOzwsZmwiIHzF5Cqy/view?usp=sharing
+> 📦 **Download `Cardiomyocyte_mip_scientifica_2026.zarr.zip` (zip, ~1.4 GB):** https://zenodo.org/records/22201727
 
 Unzip it so that it sits at `data/source/Cardiomyocyte_mip_scientifica_2026.zarr`
 (`data/source/` is not in git). The package is already fully processed:
@@ -26,6 +26,10 @@ Unzip it so that it sits at `data/source/Cardiomyocyte_mip_scientifica_2026.zarr
 The small derived files are committed (`data/derived/manifest.json`,
 `game.json`, `benchmarks.json` and the per-ROI posters), so no pipeline run is
 needed to start.
+
+The Zenodo repository also contains print-ready high-resolution PDFs for all 
+fields that a are used in the game. For optimal play, print them in A3 & 
+laminate them to allow participants to drawn on the images.
 
 ### 2. Install and build
 
