@@ -1,4 +1,4 @@
-import type { CellsFile, Entry, GameRound, Job, Manifest, RevealPayload, Scene, SegmentRequest, ThemeMode } from './types'
+import type { CellsFile, Entry, Job, Lane, LanesState, Manifest, RevealPayload, Scene, SegmentRequest, ThemeMode } from './types'
 import type { TvLang } from '../copy'
 
 async function json<T>(res: Response): Promise<T> {
@@ -10,16 +10,30 @@ export const api = {
   manifest: () => fetch('/api/manifest').then((r) => json<Manifest>(r)),
   cells: (url: string) => fetch(url, { cache: 'no-cache' }).then((r) => json<CellsFile>(r)),
 
-  gameRound: () => fetch('/api/game/round').then((r) => json<GameRound>(r)),
-  setRound: (image_id: string) =>
-    fetch('/api/game/round', {
+  gameLanes: () => fetch('/api/game/lanes').then((r) => json<LanesState>(r)),
+  setLane: (slot: number, body: { name: string; image_id: string | null; true_count?: number }) =>
+    fetch(`/api/game/lanes/${slot}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<Lane>(r)),
+  renameLane: (slot: number, name: string) =>
+    fetch(`/api/game/lanes/${slot}/name`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_id }),
-    }).then((r) => json<GameRound>(r)),
-  startRound: () => fetch('/api/game/round/start', { method: 'POST' }).then((r) => json<GameRound>(r)),
-  stopRound: () => fetch('/api/game/round/stop', { method: 'POST' }).then((r) => json<GameRound>(r)),
-  clearRound: () => fetch('/api/game/round/clear', { method: 'POST' }).then((r) => json<GameRound>(r)),
+      body: JSON.stringify({ name }),
+    }).then((r) => json<Lane>(r)),
+  startLane: (slot: number) => fetch(`/api/game/lanes/${slot}/start`, { method: 'POST' }).then((r) => json<Lane>(r)),
+  stopLane: (slot: number) => fetch(`/api/game/lanes/${slot}/stop`, { method: 'POST' }).then((r) => json<Lane>(r)),
+  clearLane: (slot: number) => fetch(`/api/game/lanes/${slot}/clear`, { method: 'POST' }).then((r) => json<Lane>(r)),
+  submitLane: (slot: number, body: { guess: number; time_seconds?: number }) =>
+    fetch(`/api/game/lanes/${slot}/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }).then((r) => json<RevealPayload & { entry: Entry; lane: Lane }>(r)),
+  startAll: () => fetch('/api/game/lanes/start-all', { method: 'POST' }).then((r) => json<LanesState>(r)),
+  clearLanes: () => fetch('/api/game/lanes/clear', { method: 'POST' }).then((r) => json<LanesState>(r)),
   entries: (limit?: number) =>
     fetch(`/api/game/entries${limit ? `?limit=${limit}` : ''}`).then((r) => json<Entry[]>(r)),
   addEntry: (body: {
