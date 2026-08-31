@@ -165,7 +165,8 @@ function GameTab() {
     if (id === lastEntryId) setLastEntryId(null)
   }
 
-  const anyArmed = lanes.some((l) => l.status === 'armed')
+  const anyArmed = lanes.some((l) => l.status === 'armed' && !l.name_taken)
+  const onlyTaken = !anyArmed && lanes.some((l) => l.status === 'armed')
   const anyFilled = lanes.some((l) => l.status !== 'empty')
   const anyRunning = lanes.some((l) => l.status === 'running')
 
@@ -189,7 +190,7 @@ function GameTab() {
                 style={{ padding: '9px 14px' }}
                 onClick={() => api.startAll().catch(() => {})}
                 disabled={!anyArmed}
-                title={anyArmed ? 'Start every armed lane on the same clock' : 'No armed lane'}
+                title={anyArmed ? 'Start every armed lane on the same clock' : onlyTaken ? 'Armed lanes have names already on the board' : 'No armed lane'}
               >
                 ▶ Start all
               </button>
@@ -204,7 +205,6 @@ function GameTab() {
                 key={lane.slot}
                 lane={lane}
                 images={images}
-                entries={entries}
                 onSubmitted={(msg, entryId) => {
                   setLastResult(msg)
                   setLastEntryId(entryId)
@@ -290,12 +290,10 @@ const STATUS_STYLE: Record<Lane['status'], { bg: string; fg: string; label: stri
 function LaneRow({
   lane,
   images,
-  entries,
   onSubmitted,
 }: {
   lane: Lane
   images: ManifestImage[]
-  entries: { name: string }[]
   onSubmitted: (msg: string, entryId: number) => void
 }) {
   const clock = useRoundClock(lane)
@@ -321,8 +319,13 @@ function LaneRow({
       .catch(() => {})
   }
 
-  // count entry once stopped
+  // count entry once stopped (name still editable to fix a duplicate)
   const [guess, setGuess] = useState('')
+  const rename = () => {
+    const n = name.trim()
+    if (n && n !== lane.name) void api.renameLane(slot, n).catch(() => {})
+    else setName(lane.name)
+  }
   const [minStr, setMinStr] = useState('')
   const [secStr, setSecStr] = useState('')
   const [dupWarning, setDupWarning] = useState(false)
@@ -347,8 +350,7 @@ function LaneRow({
 
   const submit = async () => {
     if (!guess || totalSeconds <= 0) return
-    const isDuplicate = entries.some((e) => e.name.toLowerCase() === lane.name.toLowerCase())
-    if (isDuplicate && !dupWarning) {
+    if (lane.name_taken && !dupWarning) {
       setDupWarning(true)
       return
     }
@@ -461,8 +463,17 @@ function LaneRow({
             className={`btn w-24 ${status === 'armed' ? 'btn-primary' : ''}`}
             style={{ padding: '9px 0' }}
             onClick={start}
-            disabled={status === 'empty' && !(name.trim() && imageId && (imageId !== 'custom' || parseInt(customCount, 10) > 0))}
-            title={status === 'stopped' ? 'Restart this lane from zero' : 'Start this lane'}
+            disabled={
+              lane.name_taken ||
+              (status === 'empty' && !(name.trim() && imageId && (imageId !== 'custom' || parseInt(customCount, 10) > 0)))
+            }
+            title={
+              lane.name_taken
+                ? 'This name is already on the board — change it first'
+                : status === 'stopped'
+                  ? 'Restart this lane from zero'
+                  : 'Start this lane'
+            }
           >
             {status === 'stopped' ? '↺ Restart' : '▶ Start'}
           </button>
@@ -471,6 +482,18 @@ function LaneRow({
 
       {status === 'stopped' && (
         <div className="flex items-end gap-3 pl-7">
+          <label className="flex w-44 flex-col gap-1">
+            <span className="eyebrow">name</span>
+            <input
+              className="input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onBlur={rename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+              }}
+            />
+          </label>
           <label className="flex w-20 flex-col gap-1">
             <span className="eyebrow">min</span>
             <input className="input font-mono" type="number" min={0} step={1} value={minStr} placeholder="0" onChange={(e) => setMinStr(e.target.value)} />
@@ -497,11 +520,13 @@ function LaneRow({
           <button className="btn btn-primary" style={{ padding: '11px 20px' }} disabled={!guess || totalSeconds <= 0} onClick={submit}>
             Submit
           </button>
-          {dupWarning && (
-            <span className="pb-2 text-sm" style={{ color: 'var(--ngio-amber)' }}>
-              "{lane.name}" is already on the board — Submit again to add anyway.
-            </span>
-          )}
+        </div>
+      )}
+
+      {lane.name_taken && (status === 'empty' || status === 'armed' || status === 'stopped') && (
+        <div className="pl-7 text-sm" style={{ color: 'var(--ngio-amber)' }}>
+          "{lane.name}" is already on the board — pick another name (e.g. "{lane.name} 2")
+          {status === 'stopped' && dupWarning ? ', or Submit again to add anyway.' : '.'}
         </div>
       )}
     </div>

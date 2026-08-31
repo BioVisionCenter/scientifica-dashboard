@@ -17,6 +17,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).then((r) => json<Lane>(r)),
+  renameLane: (slot: number, name: string) =>
+    fetch(`/api/game/lanes/${slot}/name`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    }).then((r) => json<Lane>(r)),
   startLane: (slot: number) => fetch(`/api/game/lanes/${slot}/start`, { method: 'POST' }).then((r) => json<Lane>(r)),
   stopLane: (slot: number) => fetch(`/api/game/lanes/${slot}/stop`, { method: 'POST' }).then((r) => json<Lane>(r)),
   clearLane: (slot: number) => fetch(`/api/game/lanes/${slot}/clear`, { method: 'POST' }).then((r) => json<Lane>(r)),
