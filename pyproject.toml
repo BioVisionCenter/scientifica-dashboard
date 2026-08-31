@@ -2,6 +2,8 @@
 name = "scientifica"
 version = "0.1.0"
 description = "Scientifica bioimage-analysis event dashboard: precomputed pipeline, live re-compute, cell-counting game"
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "cellpose>=4.2,<5",
